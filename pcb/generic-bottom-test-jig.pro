@@ -1,4 +1,4 @@
-update=Sunday, November 08, 2015 'PMt' 07:39:59 PM
+update=Tuesday, January 26, 2016 'PMt' 02:56:51 PM
 version=1
 last_client=kicad
 [pcbnew]
@@ -60,3 +60,4 @@ LibName28=contrib
 LibName29=valves
 LibName30=/Users/tannewt/kicad/libraries/ckd_sandwich
 LibName31=/Users/tannewt/chickadee-projects/shared/kicad/libraries/public/components/ti-gate
+LibName32=/Users/tannewt/chickadee-projects/shared/kicad/libraries/public/components/stm-ps
