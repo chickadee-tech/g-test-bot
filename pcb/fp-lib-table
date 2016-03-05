@@ -6,4 +6,7 @@
   (lib (name copal-electronics)(type KiCad)(uri /Users/tannewt/chickadee-projects/shared/kicad/libraries/public/footprints/copal-electronics.pretty)(options "")(descr ""))
   (lib (name mill-max-pogo-pin)(type KiCad)(uri /Users/tannewt/chickadee-projects/shared/kicad/libraries/public/footprints/mill-max-pogo-pin.pretty)(options "")(descr ""))
   (lib (name chickadee)(type KiCad)(uri /Users/tannewt/chickadee-projects/shared/kicad/libraries/private/footprints/chickadee.pretty)(options "")(descr ""))
+  (lib (name nxp)(type KiCad)(uri /Users/tannewt/chickadee-projects/shared/kicad/libraries/public/footprints/nxp.pretty)(options "")(descr ""))
+  (lib (name macrofab)(type KiCad)(uri /Users/tannewt/chickadee-projects/shared/kicad/libraries/public/footprints/macrofab.pretty)(options "")(descr ""))
+  (lib (name oshw)(type KiCad)(uri /Users/tannewt/chickadee-projects/shared/kicad/libraries/public/footprints/oshw.pretty)(options "")(descr ""))
 )

@@ -1,5 +1,5 @@
 part name,symbol,size (imp),max current,unit price,units per build,units in stock,order total,Manufacturer ID,source url,datasheet,datasheet2,,,
-C 2.2uF,C1,603,,$0.05,1,92,$0.05,C0603C225K9PACTU,http://www.digikey.com/product-detail/en/C0603C225K9PACTU/399-3362-1-ND/650351,,,,Total Base Cost,$50.42
+C 2.2uF,C1,603,,$0.05,1,92,$0.05,C0603C225K9PACTU,http://www.digikey.com/product-detail/en/C0603C225K9PACTU/399-3362-1-ND/650351,,,,Total Base Cost,$51.09
 C 1uF X7R,C2,603,,$0.03,1,20,$0.03,TMK107B7105KA-T,http://www.digikey.com/product-detail/en/TMK107B7105KA-T/587-2984-1-ND/2714177,MF-CAP-0603-1uF,http://ds.yuden.co.jp/TYCOMPAS/ut/detail.do?productNo=TMK107B7105KA-T&fileName=TMK107B7105KA-T_SS&mode=specSheetDownload,price ranges 1.40 - 2.50,,
 barrel jack smd,CON1,,,$1.18,1,1,$1.18,PJ-102AH,http://www.digikey.com/product-search/en?keywords=PJ-102AH,N,,,,
 red led,D1,,,$0.19,1,71,$0.19,LTST-C190KRKT,http://www.digikey.com/product-detail/en/LTST-C190KRKT/160-1436-1-ND/386816,MF-LED-0603-RED,http://optoelectronics.liteon.com/upload/download/DS-22-99-0151/S_110_LTST-C190KRKT.pdf,,,
@@ -19,8 +19,11 @@ dpdt,SW1,,200mA,$1.35,1,0,$1.35,CL-SB-22B-02T,http://www.digikey.com/product-det
 tactile switch top,SW2,,,$0.24,1,3,$0.24,PTS645SK50SMTR92 LFS,http://www.digikey.com/product-search/en?keywords=ckn9087ct-nd,MF-SW-TACT-6MM,,,,
 high side power switch,U1,sot23-5,500mA,$0.65,1,0,$0.65,STMPS2151STR,http://www.digikey.com/product-detail/en/STMPS2151STR/497-6934-1-ND/1880312,N,http://www.st.com/web/en/resource/technical/document/datasheet/CD00167470.pdf,,,
 3.3v regulator,U2,SOT23-5,0.3A,$0.49,1,8,$0.49,TLV70233DBVR,http://www.digikey.com/product-detail/en/TLV70233DBVR/296-32415-1-ND/3505572,MF-REG-SOT235-3.3V-300mA,http://www.ti.com/lit/ds/symlink/tlv702.pdf,,,
-Generic Bottom Test Jig,Off board,,,$13.03,1,3,$13.03,CKD-G-TEST-BOT-V1,,N,,,,
+4 x 1:2,U3,16-VFQFN Exposed Pad,,$0.63,1,1,$0.63,"74CBTLV3257BQ,115","http://www.digikey.com/product-detail/en/nxp-semiconductors/74CBTLV3257BQ,115/568-5423-1-ND/2530901",N,http://www.nxp.com/documents/data_sheet/74CBTLV3257.pdf,,,
+Generic Bottom Test Jig,Off board,,,$13.03,1,3,$13.03,CKD-G-TEST-BOT-V2,,N,,,,
 STM32F3Discovery,STM32 F3 Discovery,,,$11.57,1,1,$11.57,STM32F3Discovery,http://www.digikey.com/product-search/en?keywords=stm32f3discovery,N,http://www.st.com/st-web-ui/static/active/en/resource/technical/document/user_manual/DM00063382.pdf,,,
 Nylon Hex Nut,Off board,,,$0.10,4,94,$0.38,4688,http://www.mouser.com/ProductDetail/Keystone-Electronics/4688/?qs=%2fha2pyFadugwKlV1%2f3f%252bwz2X2xZbV6YALQKDCdqFnUvlpor63Lf6RQ%3d%3d,N,http://www.mouser.com/ds/2/215/688-744520.pdf,,,
 ~1.25mm Spacer,Off Board,,,$0.08,4,8,$0.34,908-050,,N,,,,
 "6"" Premo Flex 16 pos FPC",Off board,,,$1.56,1,1,$1.56,98267-0321,http://www.digikey.com/product-detail/en/molex-llc/0210390317/WM10031-ND/376526,,,,,
+R 220,"R4, R5, R6",603,,$0.00,3,493,$0.01,RC0603JR-07220RL,http://www.digikey.com/product-detail/en/yageo/RC0603JR-07220RL/311-220GRCT-ND/729688,MF-RES-0603-220,http://www.yageo.com/NewPortal/yageodocoutput?fileName=/pdf/R-Chip/PYu-RC_Group_51_RoHS_L_3.pdf,,,
+R 10k,"R7, R8",603,,$0.01,2,979,$0.02,RC0603FR-0710KL,http://www.digikey.com/product-detail/en/RC0603FR-0710KL/311-10.0KHRCT-ND/729827,MF-RES-0603-10K,http://www.yageo.com/NewPortal/yageodocoutput?fileName=/pdf/R-Chip/PYu-RC_Group_51_RoHS_L_3.pdf,,,
