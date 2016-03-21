@@ -34,6 +34,7 @@ C_SOURCES = \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_flash_ex.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_gpio.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_i2c.c \
+  Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_i2c_ex.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_pcd.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_pcd_ex.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_pwr.c \

@@ -8,8 +8,8 @@ import time
 import subprocess
 
 # i2c addresses for the EEPROM
-MEMORY_ADDRESS = 0b10100001
-SERIAL_ADDRESS = 0b10110001
+MEMORY_ADDRESS = 0b10100000
+SERIAL_ADDRESS = 0b10110000
 
 PORT = {"0x48000000": "PA",
         "0x48000400": "PB",
@@ -190,9 +190,11 @@ def runCommand(command):
 def i2cRead(deviceAddress, memoryAddress, bytesToRead):
   runCommand("i2cRead " + str(deviceAddress) + " " + str(memoryAddress) + " " + str(bytesToRead))
 
+board = sys.argv[2]
+
 runCommand("noled")
 
-if sys.argv[2] not in ["F3FC", "F4FC"]:
+if board not in ["F3FC", "F4FC"]:
   ser.write(b'testData\n')
   response = None
   while True:
@@ -258,21 +260,39 @@ while True:
 if okToPower:
   runCommand("powerOn")
 
-  time.sleep(1);
 
-  #runCommand("testHeight")
+  runCommand("testHeight")
 
   runCommand("heightOn")
+  #time.sleep(1)
 
   runCommand("i2cOn")
+  #time.sleep(1)
 
+  #runCommand("i2cReady " + str(SERIAL_ADDRESS))
+  #time.sleep(1)
+
+  runCommand("i2cReady " + str(SERIAL_ADDRESS))
   runCommand("i2cReady " + str(MEMORY_ADDRESS))
+  #time.sleep(1)
 
-  i2cRead(MEMORY_ADDRESS, 0, 16)
+  #i2cRead(SERIAL_ADDRESS, 0, 16)
+  #time.sleep(1)
+
+  i2cRead(SERIAL_ADDRESS, 0b0000100000000000, 16)
+  i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
+  #time.sleep(1)
 
   runCommand("i2cOff")
 
-  subprocess.call(["st-util"], stdout=subprocess.PIPE)
+  #time.sleep(10)
+
+  #time.sleep(100)
+
+  runCommand("heightOff")
+
+  if board in ["F3FC", "F4FC"]:
+    subprocess.call(["st-util"], stdout=subprocess.PIPE)
 
   runCommand("powerOff")
 

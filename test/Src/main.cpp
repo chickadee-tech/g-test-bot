@@ -68,18 +68,18 @@ static GPIO_TypeDef* FAIL_LED_GPIOx = GPIOE;
 static uint16_t FAIL_LED_Pin = GPIO_PIN_13;
 
 // This pin turns on the power to the expansion.
-static GPIO_TypeDef* POWER_ENABLE_GPIOx = GPIOE;
+static GPIO_TypeDef* POWER_ENABLE_GPIOx = GPIOF;
 static uint16_t POWER_ENABLE_Pin = GPIO_PIN_9;
 
 // Pins for the height. Affects the address of the EEPROM memory.
-static GPIO_TypeDef* HEIGHT_4_GPIOx = GPIOF;
-static uint16_t HEIGHT_4_Pin = GPIO_PIN_0;
+static GPIO_TypeDef* HEIGHT_4_GPIOx = GPIOC;
+static uint16_t HEIGHT_4_Pin = GPIO_PIN_13;
 static uint16_t HEIGHT_4_Address = 10;
-static GPIO_TypeDef* HEIGHT_2_GPIOx = GPIOF;
-static uint16_t HEIGHT_2_Pin = GPIO_PIN_1;
+static GPIO_TypeDef* HEIGHT_2_GPIOx = GPIOC;
+static uint16_t HEIGHT_2_Pin = GPIO_PIN_14;
 static uint16_t HEIGHT_2_Address = 11;
-static GPIO_TypeDef* HEIGHT_1_GPIOx = GPIOF;
-static uint16_t HEIGHT_1_Pin = GPIO_PIN_9;
+static GPIO_TypeDef* HEIGHT_1_GPIOx = GPIOC;
+static uint16_t HEIGHT_1_Pin = GPIO_PIN_15;
 static uint16_t HEIGHT_1_Address = 12;
 
 // Pins for i2c to communicate with EEPROM.
@@ -117,9 +117,9 @@ const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> dataPins = {
   {GPIOC, GPIO_PIN_15}, // GPIO6
   //{GPIOB, GPIO_PIN_7}, // i2c lines that are pulled high by default.
   //{GPIOB, GPIO_PIN_6}
-  {GPIOF, GPIO_PIN_0}, // HEIGHT_4
-  {GPIOF, GPIO_PIN_1}, // HEIGHT_2
-  {GPIOF, GPIO_PIN_9}, // HEIGHT_1
+  {GPIOC, GPIO_PIN_13}, // HEIGHT_4
+  {GPIOC, GPIO_PIN_14}, // HEIGHT_2
+  {GPIOC, GPIO_PIN_15}, // HEIGHT_1
   //{GPIOC, GPIO_PIN_0}, // 13: 3V3 LL
   {GPIOC, GPIO_PIN_1}, // 3V3 E
   //{GPIOC, GPIO_PIN_2}, // +Batt
@@ -279,8 +279,7 @@ void testHeight(void) {
     HAL_GPIO_WritePin(HEIGHT_4_GPIOx, HEIGHT_4_Pin, height4);
     HAL_GPIO_WritePin(HEIGHT_2_GPIOx, HEIGHT_2_Pin, height2);
     HAL_GPIO_WritePin(HEIGHT_1_GPIOx, HEIGHT_1_Pin, height1);
-    printf("%d %d %d\n", height4, height2, height1);
-    HAL_Delay(2000);
+    HAL_Delay(1);
     uint next_height = height + 1;
     if ((next_height & 0x4) == 0) {
       height4 = GPIO_PIN_RESET;
@@ -358,8 +357,8 @@ void testAddress(void) {
 }
 
 void testPower(void) {
-  printf("debug testPower entered\n");
-  HAL_Delay(1);
+  //printf("debug testPower entered\n");
+  //HAL_Delay(1);
   // Set everything to inputs.
   for (uint i = 0; i < powerPins.size(); ++i) {
     Input_Z(powerPins[i].first, powerPins[i].second);
@@ -369,7 +368,7 @@ void testPower(void) {
   for (uint i = 0; i < powerPins.size(); ++i) {
     Output_High(powerPins[i].first, powerPins[i].second);
     HAL_Delay(1);
-    printf("debug %p_%x started \n", powerPins[i].first, powerPins[i].second);
+    //printf("debug %p_%x started \n", powerPins[i].first, powerPins[i].second);
     printf("%p_%x ", powerPins[i].first, powerPins[i].second);
     int numShorted = 0;
     for (uint j = 0; j < powerPins.size(); ++j) {
@@ -442,16 +441,18 @@ void printStatus(HAL_StatusTypeDef status) {
   } else if (status == HAL_TIMEOUT) {
     printf("timeout\n");
   }
-  HAL_Delay(10);
+  HAL_Delay(1);
 }
 
 void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c) {
   if (hi2c->Instance == I2C1) {
+    __HAL_RCC_I2C1_CLK_ENABLE();
+
     GPIO_InitTypeDef GPIO_InitStruct;
     GPIO_InitStruct.Pin = i2c_SCL_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
     HAL_GPIO_Init(i2c_SCL_GPIOx, &GPIO_InitStruct);
 
@@ -461,29 +462,44 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c) {
   }
 }
 
+void HAL_I2C_MspDeInit(I2C_HandleTypeDef *hi2c) {
+  if (hi2c->Instance == I2C1) {
+    __HAL_RCC_I2C1_CLK_DISABLE();
+  }
+}
+
 I2C_HandleTypeDef hi2c;
 
 void i2cOn(void) {
   hi2c.Instance = I2C1;
-  hi2c.Init.Timing = 0;
+  hi2c.Init.Timing = 0x10808DD3;
   hi2c.Init.OwnAddress1 = 0;
   hi2c.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  HAL_I2C_Init(&hi2c);
+  hi2c.Init.DualAddressMode = I2C_DUALADDRESS_DISABLED;
+  hi2c.Init.OwnAddress2 = 0;
+  hi2c.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c.Init.GeneralCallMode = I2C_GENERALCALL_DISABLED;
+  hi2c.Init.NoStretchMode = I2C_NOSTRETCH_DISABLED;
+  HAL_StatusTypeDef status = HAL_I2C_Init(&hi2c);
+  printStatus(status);
+
+    /**Configure Analogue filter
+    */
+  HAL_I2CEx_AnalogFilter_Config(&hi2c, I2C_ANALOGFILTER_ENABLED);
 }
 
 void i2cReady(char* line) {
   char command[16];
   uint16_t address;
-  HAL_Delay(10);
+  //HAL_Delay(10);
   int scan_status = sscanf(line, "%s %" SCNu16 "\n", &command, &address);
-  printf("debug %d %hu address\n", scan_status, address);
-  Output_High(BUSY_LED_GPIOx, BUSY_LED_Pin);
-  HAL_StatusTypeDef status = HAL_I2C_IsDeviceReady(&hi2c, address, 4, 10);
+  //printf("debug %d %hu address\n", hi2c.State, address);
+  //Output_High(BUSY_LED_GPIOx, BUSY_LED_Pin);
+  HAL_StatusTypeDef status = HAL_I2C_IsDeviceReady(&hi2c, address, 40, 1000);
+  //printf("debug state after %x %x\n", hi2c.State, hi2c.ErrorCode);
+  //HAL_Delay(1);
   printStatus(status);
-  Input_Z(BUSY_LED_GPIOx, BUSY_LED_Pin);
+  //Input_Z(BUSY_LED_GPIOx, BUSY_LED_Pin);
 }
 
 void i2cRead(char* line) {
@@ -494,16 +510,21 @@ void i2cRead(char* line) {
   uint16_t bytesToRead;
   int scan_status = sscanf(line, "%s %" SCNu16 " %" SCNu16 " %" SCNu16 "\n", &command, &deviceAddress, &memoryAddress, &bytesToRead);
 
-  printf("debug state %x dAddress %d\n", hi2c.State, deviceAddress);
+  //printf("debug state %x dAddress %d\n", hi2c.State, deviceAddress);
 
   HAL_StatusTypeDef status = HAL_I2C_Mem_Read(&hi2c, deviceAddress, memoryAddress, I2C_MEMADD_SIZE_16BIT, readBuffer, bytesToRead, 3000);
-  printf("debug state after %x\n", hi2c.State);
-  HAL_Delay(1);
+  //printf("debug state after %x\n", hi2c.State);
+  //HAL_Delay(1);
   printStatus(status);
   HAL_Delay(1);
-  printf("%x\n", readBuffer);
-  HAL_Delay(1);
-
+  if (status == HAL_OK) {
+    for (int i = 0; i < bytesToRead; ++i) {
+      printf("%02x", readBuffer[i]);
+      HAL_Delay(1);
+    }
+    printf("\n");
+    HAL_Delay(1);
+  }
 }
 
 void i2cWrite(void) {
@@ -566,7 +587,7 @@ int main(void)
     int status = sscanf(line, "%16s", command);
     if (status == 1) {
       //printf("debug %s\n", command);
-      HAL_Delay(1);
+      //HAL_Delay(1);
       if (strcmp(command, "noled") == 0) {
         Input_Z(FAIL_LED_GPIOx, FAIL_LED_Pin);
         Input_Z(PASS_LED_GPIOx, PASS_LED_Pin);
@@ -688,8 +709,9 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB | RCC_PERIPHCLK_I2C1;
   PeriphClkInit.USBClockSelection = RCC_USBPLLCLK_DIV1_5;
+  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_SYSCLK;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
 
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
