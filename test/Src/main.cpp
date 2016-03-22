@@ -110,11 +110,11 @@ const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> dataPins = {
   {GPIOB, GPIO_PIN_4}, // TIM3
   {GPIOB, GPIO_PIN_5}, // TIM4
   {GPIOB, GPIO_PIN_8}, // GPIO1
-  //{GPIOB, GPIO_PIN_9}, // GPIO2
-  {GPIOE, GPIO_PIN_6}, // GPIO3
-  {GPIOC, GPIO_PIN_13}, // GPIO4
-  {GPIOC, GPIO_PIN_14}, // GPIO5
-  {GPIOC, GPIO_PIN_15}, // GPIO6
+  {GPIOB, GPIO_PIN_9}, // GPIO2
+  {GPIOE, GPIO_PIN_0}, // GPIO3
+  {GPIOE, GPIO_PIN_1}, // GPIO4
+  {GPIOE, GPIO_PIN_3}, // GPIO5
+  {GPIOE, GPIO_PIN_6}, // GPIO6
   //{GPIOB, GPIO_PIN_7}, // i2c lines that are pulled high by default.
   //{GPIOB, GPIO_PIN_6}
   {GPIOC, GPIO_PIN_13}, // HEIGHT_4
@@ -516,10 +516,10 @@ void i2cRead(char* line) {
   //printf("debug state after %x\n", hi2c.State);
   //HAL_Delay(1);
   printStatus(status);
-  HAL_Delay(1);
+  //HAL_Delay(1);
   if (status == HAL_OK) {
     for (int i = 0; i < bytesToRead; ++i) {
-      printf("%02x", readBuffer[i]);
+      printf("%02x ", readBuffer[i]);
       HAL_Delay(1);
     }
     printf("\n");
@@ -527,8 +527,96 @@ void i2cRead(char* line) {
   }
 }
 
-void i2cWrite(void) {
+void i2cWrite(char* line) {
+  static uint8_t writeBuffer[32];
+  char command[16];
+  uint16_t deviceAddress;
+  uint16_t memoryAddress;
+  uint16_t totalBytesToWrite;
+  int scan_status = sscanf(line, "%s %" SCNu16 " %" SCNu16 " %" SCNu16 "\n", &command, &deviceAddress, &memoryAddress, &totalBytesToWrite);
 
+  // Tell the computer we're ready for the data to write.
+  printf("ok\n");
+  HAL_Delay(1);
+
+  uint8_t offset = 0;
+  while (offset < totalBytesToWrite) {
+    // TODO(tannewt): Figure out why writing hangs when this debug printf is
+    // commented out. For now, leave it in.
+    printf("debug offset %d\n", offset);
+    HAL_Delay(4);
+    char line[128];
+    char* line_status = fgets(line, 128, stdin);
+    if (line_status == nullptr) {
+      //printf("debug line null\n");
+      //HAL_Delay(100);
+      continue;
+    }
+    //printf("debug got line %s\n", line);
+    //HAL_Delay(1);
+    int scan_status = sscanf(line, "%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x",
+      writeBuffer,
+      writeBuffer + 1,
+      writeBuffer + 2,
+      writeBuffer + 3,
+      writeBuffer + 4,
+      writeBuffer + 5,
+      writeBuffer + 6,
+      writeBuffer + 7,
+      writeBuffer + 8,
+      writeBuffer + 9,
+      writeBuffer + 10,
+      writeBuffer + 11,
+      writeBuffer + 12,
+      writeBuffer + 13,
+      writeBuffer + 14,
+      writeBuffer + 15,
+      writeBuffer + 16,
+      writeBuffer + 17,
+      writeBuffer + 18,
+      writeBuffer + 19,
+      writeBuffer + 20,
+      writeBuffer + 21,
+      writeBuffer + 22,
+      writeBuffer + 23,
+      writeBuffer + 24,
+      writeBuffer + 25,
+      writeBuffer + 26,
+      writeBuffer + 27,
+      writeBuffer + 28,
+      writeBuffer + 29,
+      writeBuffer + 30,
+      writeBuffer + 31);
+
+    uint16_t bytesToWrite = std::min(32, totalBytesToWrite - offset);
+    if (scan_status < bytesToWrite) {
+      printf("scanFail %d\n", scan_status);
+      HAL_Delay(1);
+      return;
+    } else {
+      //printf("debug writing %02x %02x %02x\n", writeBuffer[0], writeBuffer[1], writeBuffer[2]);
+      //HAL_Delay(1);
+    }
+
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Write(&hi2c, deviceAddress, memoryAddress + offset, I2C_MEMADD_SIZE_16BIT, writeBuffer, bytesToWrite, 3000);
+    printStatus(status);
+
+    if (status != HAL_OK) {
+      return;
+    }
+
+    status = HAL_BUSY;
+
+    // Wait for the memory to start responding again.
+    while (status != HAL_OK) {
+      //printf("debug ");
+      //printStatus(status);
+      status = HAL_I2C_IsDeviceReady(&hi2c, deviceAddress, 40, 1000);
+      HAL_Delay(1);
+    }
+
+    offset += bytesToWrite;
+  }
 }
 
 void i2cOff(void) {
@@ -628,7 +716,7 @@ int main(void)
       } else if (strcmp(command, "i2cRead") == 0) {
         i2cRead(line);
       } else if (strcmp(command, "i2cWrite") == 0) {
-        i2cWrite();
+        i2cWrite(line);
       } else if (strcmp(command, "i2cOff") == 0) {
         i2cOff();
       }

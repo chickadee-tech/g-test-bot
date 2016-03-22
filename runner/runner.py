@@ -1,9 +1,16 @@
 from __future__ import print_function
 
+import binascii
 import math
+import os
+import os.path
 import serial
 import sys
 import time
+
+import flightstack_pb2
+from google.protobuf import text_format
+from google.protobuf.internal import encoder
 
 import subprocess
 
@@ -90,15 +97,15 @@ PIN_TO_FS = {
   "PB5": "TIM4",
   "PB8": "GPIO1",
   "PB9": "GPIO2",
-  "PE6": "GPIO3",
-  "PC13": "GPIO4",
-  "PC14": "GPIO5",
-  "PC15": "GPIO6",
+  "PE0": "GPIO3",
+  "PE1": "GPIO4",
+  "PE3": "GPIO5",
+  "PE6": "GPIO6",
   "PB7": "i2c_SDA",
   "PB6": "i2c_SCL",
-  "PF0": "HEIGHT_4",
-  "PF1": "HEIGHT_2",
-  "PF9": "HEIGHT_1",
+  "PC13": "HEIGHT_4",
+  "PC14": "HEIGHT_2",
+  "PC15": "HEIGHT_1",
   "PC0": "3V3_0.3A_LL",
   "PC1": "3V3_0.3A_E",
   "PC2": "+BATT",
@@ -190,9 +197,58 @@ def runCommand(command):
 def i2cRead(deviceAddress, memoryAddress, bytesToRead):
   runCommand("i2cRead " + str(deviceAddress) + " " + str(memoryAddress) + " " + str(bytesToRead))
 
+def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
+  command = "i2cWrite " + str(deviceAddress) + " " + str(memoryAddress) + " " + str(len(bytesToWrite))
+  print(command)
+  ser.write(bytes(command) + b'\n')
+  command = command.split(" ")[0]
+  offset = 0
+  while True:
+    response = ser.readline().strip("\n")
+    print(response)
+    if response == "":
+      continue
+    if response.startswith("debug"):
+      continue
+    if response == "ok":
+      bytes_to_this_page = min(32, len(bytesToWrite) - offset)
+      if bytes_to_this_page == 0:
+        continue
+
+      fullHex = binascii.hexlify(bytesToWrite[offset:offset+bytes_to_this_page])
+      spaceSeparatedHex = []
+      for i, c in enumerate(fullHex):
+        spaceSeparatedHex.append(c)
+        if i % 2 == 1:
+          spaceSeparatedHex.append(" ")
+      spaceSeparatedHex = "".join(spaceSeparatedHex)
+
+      data = bytes(spaceSeparatedHex) + b'\n'
+
+      #print(data)
+      ser.write(data)
+      offset += bytes_to_this_page
+    else:
+      return False
+    if response == "i2cWrite done":
+      break
+  print()
+  return True
+
 board = sys.argv[2]
 
+# Load the proto info if possible. If not, then its a FC or typo.
+board_info_fn = os.path.join("board_info", board + ".textpb")
+board_info = flightstack_pb2.FlightStackExpansion()
+if os.path.isfile(board_info_fn):
+  with open(board_info_fn) as f:
+    text_format.Merge(f.read(), board_info)
+
+print(board_info)
+
 runCommand("noled")
+
+device_id = [1, 2, 3]
 
 if board not in ["F3FC", "F4FC"]:
   ser.write(b'testData\n')
@@ -282,6 +338,17 @@ if okToPower:
   i2cRead(SERIAL_ADDRESS, 0b0000100000000000, 16)
   i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
   #time.sleep(1)
+
+  # Set manufacturing info into the board info.
+  for part in device_id:
+    board_info.manufacturing_info.test_device_id.append(part)
+  board_info.manufacturing_info.test_time = long(time.time())
+  serialized_board_info = board_info.SerializeToString()
+  delimiter = encoder._VarintBytes(len(serialized_board_info))
+
+  i2cWrite(MEMORY_ADDRESS + 1, 0b0000000000000000, delimiter + serialized_board_info)
+
+  i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
 
   runCommand("i2cOff")
 
