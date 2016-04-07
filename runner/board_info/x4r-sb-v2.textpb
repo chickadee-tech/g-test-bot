@@ -1,0 +1,28 @@
+proto_version: 1
+expansion_info {
+  manufacturer_name: "Chickadee Tech"
+  manufacturer_url: "chickadee.tech"
+  expansion_id: 2
+  expansion_name: "X4R-SB Cradle"
+  expansion_version: 2
+  expansion_url: "ckd.tech/x4r-sb/v2"
+  connector_version: 3
+}
+gpio_config {
+  function: BUZZER
+}
+power_config {
+  average_current_ma: 60
+  maximum_current_ma: 80
+
+  uses_3v3_ll_for_logic_level_shifting: true
+  reads_batt_div: true
+}
+serial_config {
+  function: RC
+  rc_protocol: SBUS
+}
+serial_config {
+  function: TELEMETRY
+  telemetry_protocol: SMARTPORT
+}

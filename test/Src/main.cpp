@@ -142,14 +142,14 @@ const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> dataPins = {
   {GPIOE, GPIO_PIN_7}, // UART1_RX
 
   // Right side
-  {GPIOD, GPIO_PIN_6},
-  {GPIOD, GPIO_PIN_3},
-  {GPIOD, GPIO_PIN_4},
-  {GPIOD, GPIO_PIN_1},
-  {GPIOD, GPIO_PIN_2},
-  {GPIOC, GPIO_PIN_12},
-  {GPIOD, GPIO_PIN_0},
-  {GPIOC, GPIO_PIN_10},
+  {GPIOD, GPIO_PIN_6},  // TIMG1_CH1
+  {GPIOD, GPIO_PIN_3},  // TIMG1_CH2
+  {GPIOD, GPIO_PIN_4},  // TIMG1_CH3
+  {GPIOD, GPIO_PIN_1},  // TIMG1_CH4
+  {GPIOD, GPIO_PIN_2},  // TIMG2_CH1
+  {GPIOC, GPIO_PIN_12}, // TIMG2_CH2
+  {GPIOD, GPIO_PIN_0},  // TIMG2_CH3
+  {GPIOC, GPIO_PIN_10}, // TIMG2_CH4
   {GPIOC, GPIO_PIN_11},
   {GPIOA, GPIO_PIN_14},
   {GPIOA, GPIO_PIN_15},
@@ -177,6 +177,11 @@ const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> dataPins = {
   {GPIOB, GPIO_PIN_10}
 };
 
+const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> topDirect = {
+  {GPIOE, GPIO_PIN_2}, // PE2 - TEST_SWCLK
+  {GPIOE, GPIO_PIN_5},  // PE5 - TEST_SWDIO
+};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -193,8 +198,8 @@ void Enable_SWD(void);
 
 /* USER CODE BEGIN 0 */
 
-GPIO_PinState readTop(uint address) {
-  for (uint k = 0; k < 7; ++k) {
+void setAddress(uint address) {
+  for (uint k = 0; k < addressPins.size(); ++k) {
     GPIO_PinState value;
     if (((address >> k) & 1) == 1) {
       value = GPIO_PIN_SET;
@@ -203,8 +208,6 @@ GPIO_PinState readTop(uint address) {
     }
     HAL_GPIO_WritePin(addressPins[k].first, addressPins[k].second, value);
   }
-  HAL_Delay(1);
-  return HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
 }
 
 void topOn_SWDOff(void) {
@@ -212,7 +215,7 @@ void topOn_SWDOff(void) {
   HAL_Delay(1);
 
   // Turn on the address pins.
-  for (uint k = 0; k < 7; ++k) {
+  for (uint k = 0; k < addressPins.size(); ++k) {
     Output_High(addressPins[k].first, addressPins[k].second);
   }
 }
@@ -220,7 +223,7 @@ void topOn_SWDOff(void) {
 void topOff_SWDOn(void) {
   Enable_SWD();
 
-  for (uint k = 0; k < 7; ++k) {
+  for (uint k = 0; k < addressPins.size(); ++k) {
     Input_Z(addressPins[k].first, addressPins[k].second);
   }
 }
@@ -234,7 +237,9 @@ void testTop(void) {
   int numTop = 0;
   // Iterate through the top addresses.
   for (uint j = 0; j < 8 * 16; ++j) {
-    if (readTop(j) == GPIO_PIN_SET) {
+    setAddress(j);
+    HAL_Delay(1);
+    if (HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin) == GPIO_PIN_SET) {
       if (numTop == 0) {
         printf("%d", j);
       } else {
@@ -243,6 +248,39 @@ void testTop(void) {
       numTop++;
     }
   }
+  // Breakpoints after this are OK. SWD is enabled.
+  topOff_SWDOn();
+
+  // Read direct connections from the top.
+  for (uint j = 0; j < topDirect.size(); j++) {
+    Input_Z(topDirect[j].first, topDirect[j].second);
+    if (HAL_GPIO_ReadPin(topDirect[j].first, topDirect[j].second) == GPIO_PIN_SET) {
+      if (numTop == 0) {
+        printf("%d", j + 1000);
+      } else {
+        printf(",%d", j + 1000);
+      }
+      numTop++;
+    }
+  }
+}
+
+// Do this only with no test board present.
+void clearPins(void) {
+  // DO NOT set breakpoints between here and the note below. SWD is temporarily
+  // disabled.
+  topOn_SWDOff();
+
+  Output_High(TOP_READ_GPIOx, TOP_READ_Pin);
+  HAL_GPIO_WritePin(TOP_READ_GPIOx, TOP_READ_Pin, GPIO_PIN_RESET);
+
+  // Iterate through the top addresses.
+  for (uint j = 0; j < 8 * 16; ++j) {
+    setAddress(j);
+    HAL_Delay(10);
+  }
+  Input_Z(TOP_READ_GPIOx, TOP_READ_Pin);
+
   // Breakpoints after this are OK. SWD is enabled.
   topOff_SWDOn();
 }
@@ -297,9 +335,12 @@ void testHeight(void) {
       height1 = GPIO_PIN_SET;
     }
 
-    GPIO_PinState read_height4 = readTop(HEIGHT_4_Address);
-    GPIO_PinState read_height2 = readTop(HEIGHT_2_Address);
-    GPIO_PinState read_height1 = readTop(HEIGHT_1_Address);
+    setAddress(HEIGHT_4_Address);
+    GPIO_PinState read_height4 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
+    setAddress(HEIGHT_2_Address);
+    GPIO_PinState read_height2 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
+    setAddress(HEIGHT_1_Address);
+    GPIO_PinState read_height1 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     uint read_height = 0;
     if (read_height4 == GPIO_PIN_SET) {
       read_height += 0x4;
@@ -402,7 +443,7 @@ void testData(void) {
   for (uint i = 0; i < dataPins.size(); ++i) {
     printf("%p_%x ", dataPins[i].first, dataPins[i].second);
     Output_High(dataPins[i].first, dataPins[i].second);
-    HAL_Delay(1);
+    HAL_Delay(10);
 
     // Check where we read high from the top.
     int numShorted = 0;
@@ -421,7 +462,7 @@ void testData(void) {
     testTop();
     printf("\n");
     Input_Z(dataPins[i].first, dataPins[i].second);
-    HAL_Delay(1);
+    HAL_Delay(10);
   }
 
   // Deinit all of the data pins so they return to their default state. This
@@ -552,8 +593,8 @@ void i2cWrite(char* line) {
       //HAL_Delay(100);
       continue;
     }
-    //printf("debug got line %s\n", line);
-    //HAL_Delay(1);
+    printf("debug got line %s\n", line);
+    HAL_Delay(1);
     int scan_status = sscanf(line, "%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x",
       writeBuffer,
       writeBuffer + 1,
@@ -657,8 +698,10 @@ int main(void)
   Input_Z(FAIL_LED_GPIOx, FAIL_LED_Pin);
   Input_Z(PASS_LED_GPIOx, PASS_LED_Pin);
 
-  Output_High(BUSY_LED_GPIOx, BUSY_LED_Pin);
-  HAL_GPIO_WritePin(BUSY_LED_GPIOx, BUSY_LED_Pin, GPIO_PIN_RESET);
+  // Set all data pins as pulled down inputs so they can drain any rogue charge.
+  // for (uint i = 0; i < dataPins.size(); ++i) {
+  //   Input_Z(dataPins[i].first, dataPins[i].second);
+  // }
 
   /* USER CODE END 2 */
 
@@ -719,6 +762,8 @@ int main(void)
         i2cWrite(line);
       } else if (strcmp(command, "i2cOff") == 0) {
         i2cOff();
+      } else if (strcmp(command, "clearPins") == 0) {
+        clearPins();
       }
       printf("%s done\n", command);
       HAL_Delay(1);
@@ -760,14 +805,14 @@ void Enable_SWD(void) {
   GPIO_InitTypeDef GPIO_InitStruct;
   GPIO_InitStruct.Pin = TOP_READ_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF0_SWJ;
   HAL_GPIO_Init(TOP_READ_GPIOx, &GPIO_InitStruct);
 
   GPIO_InitStruct.Pin = GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF0_SWJ;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);

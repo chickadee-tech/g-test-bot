@@ -1,0 +1,22 @@
+proto_version: 1
+expansion_info {
+  manufacturer_name: "Chickadee Tech"
+  manufacturer_url: "chickadee.tech"
+  expansion_id: 2
+  expansion_name: "Dual Serial Breakout"
+  expansion_version: 1
+  expansion_url: "ckd.tech/dsb/v1"
+  connector_version: 3
+
+  stacking_height: HEIGHT_1_5MM
+  total_height: 3.146
+}
+power_config {
+  current_unknown: true
+}
+serial_config {
+  function: USER_CONFIGURED
+}
+serial_config {
+  function: USER_CONFIGURED
+}

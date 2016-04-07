@@ -1,0 +1,20 @@
+proto_version: 1
+expansion_info {
+  manufacturer_name: "Chickadee Tech"
+  manufacturer_url: "chickadee.tech"
+  expansion_id: 2
+  expansion_name: "MicroMinimOSD Cradle"
+  expansion_version: 2
+  expansion_url: "ckd.tech/uOSD/v2"
+  connector_version: 3
+
+  stacking_height: HEIGHT_4MM
+  total_height: 5.646
+}
+power_config {
+  average_current_ma: 100
+  maximum_current_ma: 500
+}
+serial_config {
+  function: MULTIWII_SERIAL_PROTOCOL
+}

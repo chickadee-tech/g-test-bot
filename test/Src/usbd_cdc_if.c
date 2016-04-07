@@ -59,8 +59,8 @@
 /* USER CODE BEGIN PRIVATE DEFINES  */
 /* Define size for the receive and transmit buffer over CDC */
 /* It's up to user to redefine and/or remove those define */
-#define APP_RX_DATA_SIZE  512
-#define APP_TX_DATA_SIZE  512
+#define APP_RX_DATA_SIZE  2048
+#define APP_TX_DATA_SIZE  2048
 /* USER CODE END PRIVATE DEFINES */
 /**
   * @}
@@ -278,8 +278,6 @@ static int8_t CDC_Receive_FS (uint8_t* Buf, uint32_t *Len)
       // This may "lap" scanBufferDataStart which will corrupt the incoming data.
       scanBufferDataEnd++;
     }
-  }
-  if (scanBufferDataStart != scanBufferDataEnd) {
   }
 
   return (USBD_OK);

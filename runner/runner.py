@@ -26,10 +26,10 @@ PORT = {"0x48000000": "PA",
         "0x48001400": "PF"}
 
 TOP_TO_FS = {
-  0: "TIM2",
-  1: "TIM3",
-  2: "TIM4",
-  3: "GPIO2",
+  0: "TIM1",
+  1: "TIM2",
+  2: "TIM3",
+  3: "TIM4",
   4: "GPIO3",
   5: "GPIO4",
   6: "GPIO5",
@@ -87,7 +87,9 @@ TOP_TO_FS = {
   58: "SPI1_NSS",
   59: "SPI1_SCK",
   60: "SPI1_MISO",
-  61: "SPI1_MOSI"
+  61: "SPI1_MOSI",
+  1000: "GPIO2",
+  1001: "GPIO1"
 }
 
 PIN_TO_FS = {
@@ -223,6 +225,8 @@ def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
           spaceSeparatedHex.append(" ")
       spaceSeparatedHex = "".join(spaceSeparatedHex)
 
+      print("writing " + spaceSeparatedHex)
+
       data = bytes(spaceSeparatedHex) + b'\n'
 
       #print(data)
@@ -238,7 +242,7 @@ def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
 board = sys.argv[2]
 
 # Load the proto info if possible. If not, then its a FC or typo.
-board_info_fn = os.path.join("board_info", board + ".textpb")
+board_info_fn = sys.argv[2]
 board_info = flightstack_pb2.FlightStackExpansion()
 if os.path.isfile(board_info_fn):
   with open(board_info_fn) as f:
@@ -247,6 +251,8 @@ if os.path.isfile(board_info_fn):
 print(board_info)
 
 runCommand("noled")
+
+#runCommand("clearPins")
 
 device_id = [1, 2, 3]
 
@@ -260,7 +266,7 @@ if board not in ["F3FC", "F4FC"]:
     if response.startswith("debug"):
       print(response)
       continue
-    if response.count(" ") > 2:
+    if response.count(" ") != 2:
       print(response)
       continue
     pin, shorts, top = response.split(" ")
@@ -316,50 +322,50 @@ while True:
 if okToPower:
   runCommand("powerOn")
 
+  if board not in ["F3FC", "F4FC"]:
+    runCommand("testHeight")
 
-  runCommand("testHeight")
+    runCommand("heightOn")
+    #time.sleep(1)
 
-  runCommand("heightOn")
-  #time.sleep(1)
+    runCommand("i2cOn")
+    #time.sleep(1)
 
-  runCommand("i2cOn")
-  #time.sleep(1)
+    #runCommand("i2cReady " + str(SERIAL_ADDRESS))
+    #time.sleep(1)
 
-  #runCommand("i2cReady " + str(SERIAL_ADDRESS))
-  #time.sleep(1)
+    runCommand("i2cReady " + str(SERIAL_ADDRESS))
+    runCommand("i2cReady " + str(MEMORY_ADDRESS))
+    #time.sleep(1)
 
-  runCommand("i2cReady " + str(SERIAL_ADDRESS))
-  runCommand("i2cReady " + str(MEMORY_ADDRESS))
-  #time.sleep(1)
+    #i2cRead(SERIAL_ADDRESS, 0, 16)
+    #time.sleep(1)
 
-  #i2cRead(SERIAL_ADDRESS, 0, 16)
-  #time.sleep(1)
+    i2cRead(SERIAL_ADDRESS, 0b0000100000000000, 16)
+    i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
+    #time.sleep(1)
 
-  i2cRead(SERIAL_ADDRESS, 0b0000100000000000, 16)
-  i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
-  #time.sleep(1)
+    # Set manufacturing info into the board info.
+    for part in device_id:
+      board_info.manufacturing_info.test_device_id.append(part)
+    board_info.manufacturing_info.test_time = long(time.time())
+    serialized_board_info = board_info.SerializeToString()
+    delimiter = encoder._VarintBytes(len(serialized_board_info))
 
-  # Set manufacturing info into the board info.
-  for part in device_id:
-    board_info.manufacturing_info.test_device_id.append(part)
-  board_info.manufacturing_info.test_time = long(time.time())
-  serialized_board_info = board_info.SerializeToString()
-  delimiter = encoder._VarintBytes(len(serialized_board_info))
+    i2cWrite(MEMORY_ADDRESS + 1, 0b0000000000000000, delimiter + serialized_board_info)
 
-  i2cWrite(MEMORY_ADDRESS + 1, 0b0000000000000000, delimiter + serialized_board_info)
+    i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
 
-  i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
+    runCommand("i2cOff")
 
-  runCommand("i2cOff")
+    #time.sleep(10)
 
-  #time.sleep(10)
+    #time.sleep(100)
 
-  #time.sleep(100)
-
-  runCommand("heightOff")
-
-  if board in ["F3FC", "F4FC"]:
-    subprocess.call(["st-util"], stdout=subprocess.PIPE)
+    runCommand("heightOff")
+  else:
+    time.sleep(2)
+    subprocess.call(["st-flash", "write", "builds/F3FC/test.bin", " 0x8000000"], stdout=subprocess.PIPE)
 
   runCommand("powerOff")
 

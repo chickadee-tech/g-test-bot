@@ -82,7 +82,7 @@ F 1 "CONN_02X25" V 1950 4250 50  0000 C CNN
 F 2 "Pin_Headers:Pin_Header_Straight_2x25" H 1950 3500 50  0001 C CNN
 F 3 "" H 1950 3500 50  0000 C CNN
 	1    1950 4250
-	1    0    0    -1  
+	-1   0    0    -1  
 $EndComp
 $Comp
 L CONN_02X25 P4
@@ -93,7 +93,7 @@ F 1 "CONN_02X25" V 4250 4250 50  0000 C CNN
 F 2 "Pin_Headers:Pin_Header_Straight_2x25" H 4250 3500 50  0001 C CNN
 F 3 "" H 4250 3500 50  0000 C CNN
 	1    4250 4250
-	1    0    0    -1  
+	-1   0    0    -1  
 $EndComp
 $Comp
 L CONN_02X10 P6
@@ -693,7 +693,6 @@ F 3 "" H 2500 7400 60  0000 C CNN
 $EndComp
 Text Label 1700 7100 2    60   ~ 0
 PF10_5V
-NoConn ~ 2000 7500
 $Comp
 L +5V #PWR011
 U 1 1 56A80086
@@ -737,8 +736,6 @@ F 3 "" H 5600 6250 50  0000 C CNN
 	1    5600 6250
 	0    -1   -1   0   
 $EndComp
-Text Label 5600 6450 3    60   ~ 0
-PC0_3V3
 $Comp
 L CONN_01X16 P8
 U 1 1 56A81567
@@ -1062,14 +1059,10 @@ Text Label 4000 3750 2    60   ~ 0
 PE0
 Text Label 4500 3750 0    60   ~ 0
 PE1
-Text Label 4000 3650 2    60   ~ 0
-PE2
 Text Label 4500 3650 0    60   ~ 0
 PE3
 Text Label 4000 3550 2    60   ~ 0
 PE4
-Text Label 4500 3550 0    60   ~ 0
-PE5
 Text Notes 3950 3950 2    60   ~ 0
 BOOT0
 Text Notes 4550 3950 0    60   ~ 0
@@ -1370,4 +1363,44 @@ Wire Wire Line
 	5650 3600 5400 3600
 Text Label 5650 3100 2    60   ~ 0
 PC0_3V3
+Text Label 5600 6450 3    60   ~ 0
+PC8_GND
+Text Label 2000 7500 2    60   ~ 0
+PE4
+Text Label 5500 7100 2    60   ~ 0
+PC0_3V3
+$Comp
+L Led_Small D4
+U 1 1 56F25A2D
+P 5500 7250
+F 0 "D4" H 5450 7375 50  0000 L CNN
+F 1 "RED" H 5325 7150 50  0000 L CNN
+F 2 "LEDs:LED_0603" V 5500 7250 50  0001 C CNN
+F 3 "" V 5500 7250 50  0000 C CNN
+	1    5500 7250
+	0    -1   -1   0   
+$EndComp
+$Comp
+L R_Small R9
+U 1 1 56F25CA9
+P 5500 7500
+F 0 "R9" H 5530 7520 50  0000 L CNN
+F 1 "1k" H 5530 7460 50  0000 L CNN
+F 2 "Resistors_SMD:R_0603_HandSoldering" H 5500 7500 50  0001 C CNN
+F 3 "" H 5500 7500 50  0000 C CNN
+	1    5500 7500
+	1    0    0    -1  
+$EndComp
+Text Label 5500 7750 2    60   ~ 0
+PC8_GND
+Wire Wire Line
+	5500 7100 5500 7150
+Wire Wire Line
+	5500 7350 5500 7400
+Wire Wire Line
+	5500 7600 5500 7750
+Text Label 4500 3550 0    60   ~ 0
+TEST_SWDIO
+Text Label 4000 3650 2    60   ~ 0
+TEST_SWCLK
 $EndSCHEMATC
