@@ -2,11 +2,17 @@ proto_version: 1
 expansion_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 0x3
-  expansion_name: "X4R-SB Cradle"
-  expansion_version: 1
-  expansion_url: "ckd.tech/x4r-sb/v1"
+  expansion_id: 0x5
+  expansion_name: "Receiver Breakout"
+  expansion_version: 2
+  expansion_url: "ckd.tech/rcvr-bo/v2"
   connector_version: 3
+}
+single_timer_config {
+  input: PPM
+}
+gpio_config {
+  function: RC_INVERT
 }
 gpio_config {
   function: BUZZER
@@ -16,13 +22,12 @@ power_config {
   maximum_current_ma: 80
 
   uses_3v3_ll_for_logic_level_shifting: true
-  reads_batt_div: true
 }
 serial_config {
   function: RC
-  rc_protocol: SBUS
+  rc_protocol: RC_USER_CONFIGURED
 }
 serial_config {
   function: TELEMETRY
-  telemetry_protocol: SMARTPORT
+  telemetry_protocol: TELEMETRY_USER_CONFIGURED
 }

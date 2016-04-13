@@ -2,7 +2,7 @@ proto_version: 1
 expansion_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 2
+  expansion_id: 0x3
   expansion_name: "X4R-SB Cradle"
   expansion_version: 2
   expansion_url: "ckd.tech/x4r-sb/v2"

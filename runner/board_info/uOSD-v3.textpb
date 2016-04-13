@@ -2,8 +2,8 @@ proto_version: 1
 expansion_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 2
-  expansion_name: "MicroMinimOSD Cradle"
+  expansion_id: 0x7
+  expansion_name: "MicroMinimOSD Adapter"
   expansion_version: 3
   expansion_url: "ckd.tech/uOSD/v3"
   connector_version: 3

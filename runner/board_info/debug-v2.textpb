@@ -2,11 +2,14 @@ proto_version: 1
 expansion_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 1
+  expansion_id: 0xa
   expansion_name: "Debug"
   expansion_version: 2
   expansion_url: "ckd.tech/dbg/v2"
   connector_version: 2
+
+  stacking_height: HEIGHT_2MM
+  total_height: 3.46
 }
 gpio_config {
   function: SWD_SDIO

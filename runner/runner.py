@@ -364,8 +364,21 @@ if okToPower:
 
     runCommand("heightOff")
   else:
-    time.sleep(2)
+    time.sleep(0.5)
     subprocess.call(["st-flash", "write", "builds/F3FC/test.bin", " 0x8000000"], stdout=subprocess.PIPE)
+
+    # Cold restart
+    runCommand("powerOff")
+
+    time.sleep(2)
+
+    runCommand("powerOn")
+    time.sleep(0.1)
+
+    # Run the tests.
+
+    # Flash shipping firmware.
+    subprocess.call(["st-flash", "write", "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin", " 0x8000000"], stdout=subprocess.PIPE)
 
   runCommand("powerOff")
 

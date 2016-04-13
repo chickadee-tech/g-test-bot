@@ -47,7 +47,7 @@ Comment3 ""
 Comment4 ""
 $EndDescr
 Text Notes 7050 7000 0    197  ~ 0
-generic-bottom-test-jig v2
+generic-bottom-test-jig v3
 $Comp
 L CKD_SANDWICH PORT_OUT1
 U 1 1 56A16422
@@ -194,7 +194,7 @@ PB1
 Text Label 2200 4150 0    60   ~ 0
 PB2
 Text Label 4500 4250 0    60   ~ 0
-PB3_SWO
+PB3_SWO_MEZ_BOOT
 Text Label 4000 4150 2    60   ~ 0
 PB4
 Text Label 4500 4150 0    60   ~ 0
@@ -357,10 +357,6 @@ Text Label 9600 4500 0    60   ~ 0
 PD14
 Text Label 9600 4400 0    60   ~ 0
 PD15
-Text Label 9600 4300 0    60   ~ 0
-PC7_RESET
-Text Label 9600 4200 0    60   ~ 0
-PC6_BOOT0
 Text Label 8200 5700 2    60   ~ 0
 PE7
 Text Label 8200 5600 2    60   ~ 0
@@ -484,7 +480,7 @@ Text Label 6650 3750 0    60   ~ 0
 PC8_GND
 Text Label 5800 3750 2    60   ~ 0
 PF10_5V
-Text Label 5650 4250 2    60   ~ 0
+Text Label 5650 4250 3    60   ~ 0
 PC2_BATT
 Wire Wire Line
 	6450 4250 6450 3350
@@ -1062,7 +1058,7 @@ PE1
 Text Label 4500 3650 0    60   ~ 0
 PE3
 Text Label 4000 3550 2    60   ~ 0
-PE4
+PE4_FAULT
 Text Notes 3950 3950 2    60   ~ 0
 BOOT0
 Text Notes 4550 3950 0    60   ~ 0
@@ -1070,7 +1066,7 @@ VDD
 Text Label 2200 3150 0    60   ~ 0
 HOST_nRST
 Text Label 2200 3550 0    60   ~ 0
-PA0
+PA0_MEZ_RESET
 Text Label 8200 2400 2    60   ~ 0
 PE0
 Text Label 8200 2500 2    60   ~ 0
@@ -1366,7 +1362,7 @@ PC0_3V3
 Text Label 5600 6450 3    60   ~ 0
 PC8_GND
 Text Label 2000 7500 2    60   ~ 0
-PE4
+PE4_FAULT
 Text Label 5500 7100 2    60   ~ 0
 PC0_3V3
 $Comp
@@ -1403,4 +1399,8 @@ Text Label 4500 3550 0    60   ~ 0
 TEST_SWDIO
 Text Label 4000 3650 2    60   ~ 0
 TEST_SWCLK
+Text Label 9600 4200 0    60   ~ 0
+PB3_SWO_MEZ_BOOT
+Text Label 9600 4300 0    60   ~ 0
+PA0_MEZ_RESET
 $EndSCHEMATC

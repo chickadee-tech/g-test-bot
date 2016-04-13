@@ -2,14 +2,14 @@ proto_version: 1
 expansion_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 2
+  expansion_id: 0x4
   expansion_name: "D4R-II Cradle"
   expansion_version: 2
   expansion_url: "ckd.tech/d4r-ii-c/v2"
   connector_version: 3
 
   stacking_height: HEIGHT_4MM
-  total_height: 6.46
+  total_height: 5.46
 }
 single_timer_config {
   input: PPM

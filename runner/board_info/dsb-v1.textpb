@@ -2,7 +2,7 @@ proto_version: 1
 expansion_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 2
+  expansion_id: 0x8
   expansion_name: "Dual Serial Breakout"
   expansion_version: 1
   expansion_url: "ckd.tech/dsb/v1"
