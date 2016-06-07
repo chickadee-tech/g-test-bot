@@ -71,6 +71,14 @@ static uint16_t FAIL_LED_Pin = GPIO_PIN_13;
 static GPIO_TypeDef* POWER_ENABLE_GPIOx = GPIOF;
 static uint16_t POWER_ENABLE_Pin = GPIO_PIN_9;
 
+// This pin detects power faults.
+static GPIO_TypeDef* POWER_FAULT_GPIOx = GPIOE;
+static uint16_t POWER_FAULT_Pin = GPIO_PIN_4;
+
+// This pin is connected to the button and will hang the process until pressed.
+static GPIO_TypeDef* GO_GPIOx = GPIOC;
+static uint16_t GO_Pin = GPIO_PIN_3;
+
 // Pins for the height. Affects the address of the EEPROM memory.
 static GPIO_TypeDef* HEIGHT_4_GPIOx = GPIOC;
 static uint16_t HEIGHT_4_Pin = GPIO_PIN_13;
@@ -87,6 +95,13 @@ static GPIO_TypeDef* i2c_SDA_GPIOx = GPIOB;
 static uint16_t i2c_SDA_Pin = GPIO_PIN_7;
 static GPIO_TypeDef* i2c_SCL_GPIOx = GPIOB;
 static uint16_t i2c_SCL_Pin = GPIO_PIN_6;
+
+// This pin is connected to the button and will hang the process until pressed.
+static GPIO_TypeDef* UART_TX_GPIOx = GPIOD;
+static uint16_t UART_TX_Pin = GPIO_PIN_8;
+static GPIO_TypeDef* UART_RX_GPIOx = GPIOD;
+static uint16_t UART_RX_Pin = GPIO_PIN_9;
+static uint8_t UART_command_length = 8;
 
 const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> powerPins = {
   {GPIOC, GPIO_PIN_0}, // PC0 - 3V3
@@ -159,8 +174,8 @@ const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> dataPins = {
   {GPIOA, GPIO_PIN_8},
   {GPIOC, GPIO_PIN_9},
   //{GPIOC, GPIO_PIN_8}, // GND
-  {GPIOC, GPIO_PIN_6},
-  // {GPIOC, GPIO_PIN_7}, // Reset
+  {GPIOB, GPIO_PIN_3}, // BOOT0
+  {GPIOA, GPIO_PIN_0}, // Reset
   {GPIOD, GPIO_PIN_15},
   {GPIOD, GPIO_PIN_14},
   {GPIOD, GPIO_PIN_13},
@@ -180,6 +195,8 @@ const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> dataPins = {
 const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> topDirect = {
   {GPIOE, GPIO_PIN_2}, // PE2 - TEST_SWCLK
   {GPIOE, GPIO_PIN_5},  // PE5 - TEST_SWDIO
+  {GPIOC, GPIO_PIN_6},  // PC6 - BOOT0
+  {GPIOC, GPIO_PIN_7},  // PC7 - RESET
 };
 
 /* USER CODE END PV */
@@ -238,7 +255,7 @@ void testTop(void) {
   // Iterate through the top addresses.
   for (uint j = 0; j < 8 * 16; ++j) {
     setAddress(j);
-    HAL_Delay(1);
+    HAL_Delay(5);
     if (HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin) == GPIO_PIN_SET) {
       if (numTop == 0) {
         printf("%d", j);
@@ -336,10 +353,13 @@ void testHeight(void) {
     }
 
     setAddress(HEIGHT_4_Address);
+    HAL_Delay(5);
     GPIO_PinState read_height4 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     setAddress(HEIGHT_2_Address);
+    HAL_Delay(5);
     GPIO_PinState read_height2 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     setAddress(HEIGHT_1_Address);
+    HAL_Delay(5);
     GPIO_PinState read_height1 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     uint read_height = 0;
     if (read_height4 == GPIO_PIN_SET) {
@@ -353,7 +373,7 @@ void testHeight(void) {
     }
 
     if (read_height != next_height) {
-      printf("height failed at %d. read %d\n", height, read_height);
+      printf("height failed at %d. read %d and wanted %d\n", height, read_height, next_height);
       HAL_Delay(1);
       pass = false;
     }
@@ -667,6 +687,120 @@ void i2cOff(void) {
   Input_Z(i2c_SDA_GPIOx, i2c_SDA_Pin);
 }
 
+void powerOff(void) {
+  for (uint i = 0; i < powerPins.size(); ++i) {
+    Input_Z(powerPins[i].first, powerPins[i].second);
+  }
+  Input_Z(POWER_ENABLE_GPIOx, POWER_ENABLE_Pin);
+}
+
+void powerOn(void) {
+  for (uint i = 0; i < powerPins.size(); ++i) {
+    Input_Z(powerPins[i].first, powerPins[i].second);
+  }
+
+  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitStruct.Pin = POWER_FAULT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = 0;
+  HAL_GPIO_Init(POWER_FAULT_GPIOx, &GPIO_InitStruct);
+  HAL_Delay(10);
+
+  if (HAL_GPIO_ReadPin(POWER_FAULT_GPIOx, POWER_FAULT_Pin) == GPIO_PIN_RESET) {
+    printf("powerFaultPrecheckFail\n");
+    HAL_Delay(1);
+    return;
+  }
+  Output_High(POWER_ENABLE_GPIOx, POWER_ENABLE_Pin);
+  HAL_Delay(120);
+  if (HAL_GPIO_ReadPin(POWER_FAULT_GPIOx, POWER_FAULT_Pin) == GPIO_PIN_RESET) {
+    printf("powerFaultPostcheckFail\n");
+  } else {
+    printf("powerFaultPostcheckOK\n");
+  }
+  HAL_Delay(1);
+}
+
+void waitForButton(void) {
+  Input_Z(GO_GPIOx, GO_Pin);
+  while (true) {
+    if (HAL_GPIO_ReadPin(GO_GPIOx, GO_Pin) == GPIO_PIN_SET) {
+      return;
+    }
+    HAL_Delay(10);
+  }
+}
+
+void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
+  __USART3_CLK_ENABLE();
+
+  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitStruct.Pin = UART_TX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
+  HAL_GPIO_Init(UART_TX_GPIOx, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = UART_RX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
+  HAL_GPIO_Init(UART_RX_GPIOx, &GPIO_InitStruct);
+}
+
+void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
+  Input_Z(UART_TX_GPIOx, UART_TX_Pin);
+  Input_Z(UART_RX_GPIOx, UART_RX_Pin);
+}
+
+static UART_HandleTypeDef hUART;
+void cBoardCommsOn(void) {
+  hUART.Instance = USART3;
+  hUART.Init.BaudRate = 115200;
+  hUART.Init.WordLength = UART_WORDLENGTH_8B;
+  hUART.Init.StopBits = UART_STOPBITS_1;
+  hUART.Init.Parity = UART_PARITY_NONE;
+  hUART.Init.Mode = UART_MODE_TX_RX;
+  hUART.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  hUART.Init.OverSampling = UART_OVERSAMPLING_16;
+  hUART.Init.OneBitSampling = UART_ONEBIT_SAMPLING_DISABLED ;
+  hUART.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  HAL_UART_Init(&hUART);
+}
+
+void cBoardCommsOff(void) {
+  HAL_UART_DeInit(&hUART);
+}
+
+void cBoardCommand(char* line) {
+  uint8_t transmitBuffer[UART_command_length] = {0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef};
+  // int scan_status = sscanf(line, "%x %x %x %x %x %x %x %x",
+  //   transmitBuffer,
+  //   transmitBuffer + 1,
+  //   transmitBuffer + 2,
+  //   transmitBuffer + 3,
+  //   transmitBuffer + 4,
+  //   transmitBuffer + 5,
+  //   transmitBuffer + 6,
+  //   transmitBuffer + 7);
+  HAL_StatusTypeDef status = HAL_UART_Transmit(&hUART, (unsigned char*) transmitBuffer, UART_command_length, 100);
+  printStatus(status);
+
+  uint8_t receiveBuffer[UART_command_length];
+  status = HAL_UART_Receive(&hUART, (unsigned char*) receiveBuffer, UART_command_length, 100);
+  printStatus(status);
+  for (int i = 0; i < UART_command_length; ++i) {
+    printf("%02x ", receiveBuffer[i]);
+    HAL_Delay(1);
+  }
+  printf("\n");
+  HAL_Delay(1);
+}
+
 /* USER CODE END 0 */
 
 int main(void)
@@ -735,15 +869,9 @@ int main(void)
       } else if (strcmp(command, "testPower") == 0) {
         testPower();
       } else if (strcmp(command, "powerOn") == 0) {
-        for (uint i = 0; i < powerPins.size(); ++i) {
-          Input_Z(powerPins[i].first, powerPins[i].second);
-        }
-        Output_High(POWER_ENABLE_GPIOx, POWER_ENABLE_Pin);
+        powerOn();
       } else if (strcmp(command, "powerOff") == 0) {
-        for (uint i = 0; i < powerPins.size(); ++i) {
-          Input_Z(powerPins[i].first, powerPins[i].second);
-        }
-        Input_Z(POWER_ENABLE_GPIOx, POWER_ENABLE_Pin);
+        powerOff();
       } else if (strcmp(command, "testHeight") == 0) {
         testHeight();
       } else if (strcmp(command, "heightOn") == 0) {
@@ -764,6 +892,14 @@ int main(void)
         i2cOff();
       } else if (strcmp(command, "clearPins") == 0) {
         clearPins();
+      } else if (strcmp(command, "waitForButton") == 0) {
+        waitForButton();
+      } else if (strcmp(command, "cBoardCommand") == 0) {
+        cBoardCommand(line);
+      } else if (strcmp(command, "cBoardCommsOn") == 0) {
+        cBoardCommsOn();
+      } else if (strcmp(command, "cBoardCommsOff") == 0) {
+        cBoardCommsOff();
       }
       printf("%s done\n", command);
       HAL_Delay(1);
@@ -842,7 +978,8 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB | RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB | RCC_PERIPHCLK_I2C1 | RCC_PERIPHCLK_USART3;
+  PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   PeriphClkInit.USBClockSelection = RCC_USBPLLCLK_DIV1_5;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_SYSCLK;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);

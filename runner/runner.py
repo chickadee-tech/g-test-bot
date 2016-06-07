@@ -18,6 +18,9 @@ import subprocess
 MEMORY_ADDRESS = 0b10100000
 SERIAL_ADDRESS = 0b10110000
 
+SHIPPING_BINARIES = {"F3FC": "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin",
+                     "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
+
 PORT = {"0x48000000": "PA",
         "0x48000400": "PB",
         "0x48000800": "PC",
@@ -89,7 +92,9 @@ TOP_TO_FS = {
   60: "SPI1_MISO",
   61: "SPI1_MOSI",
   1000: "GPIO2",
-  1001: "GPIO1"
+  1001: "GPIO1",
+  1002: "BOOT0",
+  1003: "RESET"
 }
 
 PIN_TO_FS = {
@@ -146,8 +151,8 @@ PIN_TO_FS = {
   "PA8": "SDMMC1_CK",
   "PC9": "SDMMC1_CMD",
   "PC8": "GND",
-  "PC6": "BOOT0",
-  "PC7": "RESET",
+  "PB3": "BOOT0",
+  "PA0": "RESET",
   "PD15": "CAN_HI",
   "PD14": "CAN_LO",
   "PD13": "SPI3_NSS",
@@ -239,24 +244,7 @@ def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
   print()
   return True
 
-board = sys.argv[2]
-
-# Load the proto info if possible. If not, then its a FC or typo.
-board_info_fn = sys.argv[2]
-board_info = flightstack_pb2.FlightStackExpansion()
-if os.path.isfile(board_info_fn):
-  with open(board_info_fn) as f:
-    text_format.Merge(f.read(), board_info)
-
-print(board_info)
-
-runCommand("noled")
-
-#runCommand("clearPins")
-
-device_id = [1, 2, 3]
-
-if board not in ["F3FC", "F4FC"]:
+def testDataPins():
   ser.write(b'testData\n')
   response = None
   while True:
@@ -283,6 +271,27 @@ if board not in ["F3FC", "F4FC"]:
     print(pin_to_fs(addresses_to_pin(pin)), map(pin_to_fs, map(addresses_to_pin, shorts)), top)
 
   print()
+
+board = sys.argv[2]
+
+# Load the proto info if possible. If not, then its a FC or typo.
+board_info_fn = sys.argv[2]
+board_info = flightstack_pb2.FlightStackExpansion()
+if os.path.isfile(board_info_fn):
+  with open(board_info_fn) as f:
+    text_format.Merge(f.read(), board_info)
+
+print(board_info)
+
+runCommand("noled")
+
+#runCommand("clearPins")
+
+device_id = [1, 2, 3]
+
+if board not in ["F3FC", "F4FC"]:
+  #testDataPins()
+  pass
 
 OK_SHORTS = {"3V3_0.3A_LL": ["5V", "GND"], "5V": ["3V3_0.3A_LL", "GND"], "GND": ["3V3_0.3A_LL", "5V"]}
 okToPower = True
@@ -323,6 +332,8 @@ if okToPower:
   runCommand("powerOn")
 
   if board not in ["F3FC", "F4FC"]:
+    #testDataPins()
+
     runCommand("testHeight")
 
     runCommand("heightOn")
@@ -364,7 +375,7 @@ if okToPower:
 
     runCommand("heightOff")
   else:
-    time.sleep(0.5)
+    time.sleep(2.5)
     subprocess.call(["st-flash", "write", "builds/F3FC/test.bin", " 0x8000000"], stdout=subprocess.PIPE)
 
     # Cold restart
@@ -373,14 +384,27 @@ if okToPower:
     time.sleep(2)
 
     runCommand("powerOn")
-    time.sleep(0.1)
+    time.sleep(4)
 
     # Run the tests.
+    runCommand("cBoardCommsOn")
+    time.sleep(5)
+    runCommand("cBoardCommand 01 ff 02 fe 03 fd 04 fc")
+    time.sleep(0.1)
+    runCommand("cBoardCommand 01 ff 03 fe 03 fd 04 fc")
+    time.sleep(0.1)
+    runCommand("cBoardCommand 01 ff 04 fe 03 fd 04 fc")
+    time.sleep(5)
+    runCommand("cBoardCommsOff")
+
+    time.sleep(5)
 
     # Flash shipping firmware.
-    subprocess.call(["st-flash", "write", "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin", " 0x8000000"], stdout=subprocess.PIPE)
+    #subprocess.call(["st-flash", "write", SHIPPING_BINARIES[board], " 0x8000000"], stdout=subprocess.PIPE)
 
   runCommand("powerOff")
+
+  #runCommand("waitForButton")
 
 if okToPower:
   ser.write(b'pass\n')

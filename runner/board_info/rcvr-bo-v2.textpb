@@ -20,8 +20,6 @@ gpio_config {
 power_config {
   average_current_ma: 60
   maximum_current_ma: 80
-
-  uses_3v3_ll_for_logic_level_shifting: true
 }
 serial_config {
   function: RC

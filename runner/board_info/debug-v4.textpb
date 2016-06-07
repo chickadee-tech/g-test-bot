@@ -1,0 +1,27 @@
+proto_version: 1
+expansion_info {
+  manufacturer_name: "Chickadee Tech"
+  manufacturer_url: "chickadee.tech"
+  expansion_id: 0xa
+  expansion_name: "Debug"
+  expansion_version: 4
+  expansion_url: "ckd.tech/dbg/v4"
+  connector_version: 3
+
+  stacking_height: HEIGHT_2MM
+  total_height: 3.46
+}
+gpio_config {
+  function: SWD_SDIO
+}
+gpio_config {
+  function: SWD_SCL
+}
+power_config {
+  average_current_ma: 2
+  maximum_current_ma: 10
+}
+mcu_control_config {
+  controls_boot_pin: true
+  controls_reset_pin: true
+}

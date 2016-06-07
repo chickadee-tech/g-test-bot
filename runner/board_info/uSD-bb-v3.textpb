@@ -1,0 +1,26 @@
+proto_version: 1
+expansion_info {
+  manufacturer_name: "Chickadee Tech"
+  manufacturer_url: "chickadee.tech"
+  expansion_id: 0x6
+  expansion_name: "MicroSD"
+  expansion_version: 1
+  expansion_url: "ckd.tech/uSD-bb/v3"
+  connector_version: 3
+
+  stacking_height: HEIGHT_3_5MM
+  total_height: 5.146
+}
+gpio_config {
+  function: ACTIVITY_LED_ACTIVE_LOW
+}
+gpio_config {
+  function: SD_CARD_DETECT
+}
+power_config {
+  average_current_ma: 100
+  maximum_current_ma: 300
+}
+spi_config {
+  function: SDCARD
+}
