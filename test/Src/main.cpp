@@ -103,6 +103,20 @@ static GPIO_TypeDef* UART_RX_GPIOx = GPIOD;
 static uint16_t UART_RX_Pin = GPIO_PIN_9;
 static uint8_t UART_command_length = 8;
 
+#define U_ID_0 (*(uint32_t*)0x1FFFF7AC)
+#define U_ID_1 (*(uint32_t*)0x1FFFF7B0)
+#define U_ID_2 (*(uint32_t*)0x1FFFF7B4)
+
+#define ECHO 0
+#define TEST_DATA 1
+#define CONTINUE 2
+
+#define MORE_DATA 0
+#define COMPLETELY_DONE 1
+#define TEST_TOP_MUX 2
+#define TEST_TOP_DIRECT 3
+#define NO_TEST_TOP 4
+
 const std::vector<std::pair<GPIO_TypeDef*, uint16_t>> powerPins = {
   {GPIOC, GPIO_PIN_0}, // PC0 - 3V3
   {GPIOF, GPIO_PIN_10}, // PF10 - 5V
@@ -245,7 +259,7 @@ void topOff_SWDOn(void) {
   }
 }
 
-void testTop(void) {
+void testTop(uint8_t startIndex, uint8_t endIndex) {
   // DO NOT set breakpoints between here and the note below. SWD is temporarily
   // disabled.
   topOn_SWDOff();
@@ -253,9 +267,11 @@ void testTop(void) {
   // Check where we read high from the top.
   int numTop = 0;
   // Iterate through the top addresses.
-  for (uint j = 0; j < 8 * 16; ++j) {
+  // TODO(tannewt): Adjust address range based on the number of top pins on the
+  // current test top.
+  for (uint j = startIndex; j < endIndex; ++j) {
     setAddress(j);
-    HAL_Delay(5);
+    HAL_Delay(10);
     if (HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin) == GPIO_PIN_SET) {
       if (numTop == 0) {
         printf("%d", j);
@@ -353,13 +369,13 @@ void testHeight(void) {
     }
 
     setAddress(HEIGHT_4_Address);
-    HAL_Delay(5);
+    HAL_Delay(10);
     GPIO_PinState read_height4 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     setAddress(HEIGHT_2_Address);
-    HAL_Delay(5);
+    HAL_Delay(10);
     GPIO_PinState read_height2 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     setAddress(HEIGHT_1_Address);
-    HAL_Delay(5);
+    HAL_Delay(10);
     GPIO_PinState read_height1 = HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin);
     uint read_height = 0;
     if (read_height4 == GPIO_PIN_SET) {
@@ -458,16 +474,16 @@ void testData(void) {
   for (uint i = 0; i < dataPins.size(); ++i) {
     Input_Z(dataPins[i].first, dataPins[i].second);
   }
-  HAL_Delay(1);
+  HAL_Delay(100);
 
   for (uint i = 0; i < dataPins.size(); ++i) {
     printf("%p_%x ", dataPins[i].first, dataPins[i].second);
     Output_High(dataPins[i].first, dataPins[i].second);
-    HAL_Delay(10);
+    HAL_Delay(2);
 
-    // Check where we read high from the top.
+    // Check where we read high from the bottom.
     int numShorted = 0;
-    // Iterate through the top addresses.
+    // Iterate through the bottom pins.
     for (uint j = i + 1; j < dataPins.size(); ++j) {
       if (HAL_GPIO_ReadPin(dataPins[j].first, dataPins[j].second) == GPIO_PIN_SET) {
         if (numShorted == 0) {
@@ -479,10 +495,14 @@ void testData(void) {
       }
     }
     printf(" ");
-    testTop();
+    if (i < 30) {
+      testTop(0, 31);
+    } else {
+      testTop(31, 64);
+    }
     printf("\n");
     Input_Z(dataPins[i].first, dataPins[i].second);
-    HAL_Delay(10);
+    HAL_Delay(2);
   }
 
   // Deinit all of the data pins so they return to their default state. This
@@ -602,19 +622,11 @@ void i2cWrite(char* line) {
 
   uint8_t offset = 0;
   while (offset < totalBytesToWrite) {
-    // TODO(tannewt): Figure out why writing hangs when this debug printf is
-    // commented out. For now, leave it in.
-    printf("debug offset %d\n", offset);
-    HAL_Delay(4);
     char line[128];
     char* line_status = fgets(line, 128, stdin);
     if (line_status == nullptr) {
-      //printf("debug line null\n");
-      //HAL_Delay(100);
       continue;
     }
-    printf("debug got line %s\n", line);
-    HAL_Delay(1);
     int scan_status = sscanf(line, "%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x",
       writeBuffer,
       writeBuffer + 1,
@@ -714,20 +726,28 @@ void powerOn(void) {
     return;
   }
   Output_High(POWER_ENABLE_GPIOx, POWER_ENABLE_Pin);
-  HAL_Delay(120);
+  HAL_Delay(200);
   if (HAL_GPIO_ReadPin(POWER_FAULT_GPIOx, POWER_FAULT_Pin) == GPIO_PIN_RESET) {
+    Input_Z(POWER_ENABLE_GPIOx, POWER_ENABLE_Pin);
     printf("powerFaultPostcheckFail\n");
   } else {
     printf("powerFaultPostcheckOK\n");
   }
   HAL_Delay(1);
+  Input_Z(POWER_FAULT_GPIOx, POWER_FAULT_Pin);
 }
 
 void waitForButton(void) {
   Input_Z(GO_GPIOx, GO_Pin);
   while (true) {
     if (HAL_GPIO_ReadPin(GO_GPIOx, GO_Pin) == GPIO_PIN_SET) {
-      return;
+      break;
+    }
+    HAL_Delay(10);
+  }
+  while (true) {
+    if (HAL_GPIO_ReadPin(GO_GPIOx, GO_Pin) == GPIO_PIN_RESET) {
+      break;
     }
     HAL_Delay(10);
   }
@@ -776,28 +796,103 @@ void cBoardCommsOff(void) {
   HAL_UART_DeInit(&hUART);
 }
 
-void cBoardCommand(char* line) {
-  uint8_t transmitBuffer[UART_command_length] = {0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef};
-  // int scan_status = sscanf(line, "%x %x %x %x %x %x %x %x",
-  //   transmitBuffer,
-  //   transmitBuffer + 1,
-  //   transmitBuffer + 2,
-  //   transmitBuffer + 3,
-  //   transmitBuffer + 4,
-  //   transmitBuffer + 5,
-  //   transmitBuffer + 6,
-  //   transmitBuffer + 7);
-  HAL_StatusTypeDef status = HAL_UART_Transmit(&hUART, (unsigned char*) transmitBuffer, UART_command_length, 100);
-  printStatus(status);
-
-  uint8_t receiveBuffer[UART_command_length];
-  status = HAL_UART_Receive(&hUART, (unsigned char*) receiveBuffer, UART_command_length, 100);
-  printStatus(status);
-  for (int i = 0; i < UART_command_length; ++i) {
-    printf("%02x ", receiveBuffer[i]);
-    HAL_Delay(1);
+uint8_t cBoardReceive(uint8_t* outputBuffer, uint8_t outputBufferSize) {
+  uint8_t receiveBuffer[UART_command_length + 1];
+  receiveBuffer[0] = MORE_DATA;
+  uint8_t totalCopied = 0;
+  while (receiveBuffer[0] == MORE_DATA) {
+    HAL_StatusTypeDef status = HAL_UART_Receive(&hUART, (unsigned char*) receiveBuffer, UART_command_length + 1, 2000);
+    if (status != HAL_OK) {
+      printf("uart receive status %d\n", status);
+      HAL_Delay(1);
+      printStatus(status);
+      HAL_Delay(1);
+      return COMPLETELY_DONE;
+    }
+    printf("%02x ", receiveBuffer[0]);
+    for (int i = 0; i < UART_command_length; ++i) {
+      printf("%02x ", receiveBuffer[i + 1]);
+      if (totalCopied < outputBufferSize) {
+        outputBuffer[totalCopied++] = receiveBuffer[i + 1];
+      }
+      HAL_Delay(1);
+    }
+    printf("\n");
   }
-  printf("\n");
+  HAL_Delay(1);
+  return receiveBuffer[0];
+}
+
+void cBoardTestData(void) {
+  uint8_t transmitBuffer[UART_command_length] = {TEST_DATA, 0, 0, 0, 0, 0, 0, 0};
+  HAL_StatusTypeDef status = HAL_UART_Transmit(&hUART, (unsigned char*) transmitBuffer, UART_command_length, 100);
+  if (status != HAL_OK) {
+    printStatus(status);
+    return;
+  }
+
+  uint8_t cBoardStatus = TEST_TOP_MUX;
+  uint8_t readIndex;
+  while (cBoardStatus != COMPLETELY_DONE) {
+    // Save the first byte because its the index of the top pin that should be high.
+    cBoardStatus = cBoardReceive(&readIndex, 1);
+    if (cBoardStatus == TEST_TOP_MUX) {
+      // DO NOT set breakpoints between here and the note below. SWD is temporarily
+      // disabled.
+      topOn_SWDOff();
+
+      setAddress(readIndex);
+      HAL_Delay(10);
+      if (HAL_GPIO_ReadPin(TOP_READ_GPIOx, TOP_READ_Pin) == GPIO_PIN_SET) {
+        printf("topPass\n");
+      } else {
+        printf("topFail ");
+        testTop(0, 63);
+        printf("\n");
+      }
+      HAL_Delay(1);
+      // Breakpoints after this are OK. SWD is enabled.
+      topOff_SWDOn();
+    } else if (cBoardStatus == TEST_TOP_DIRECT) {
+      Input_Z(topDirect[readIndex].first, topDirect[readIndex].second);
+      if (HAL_GPIO_ReadPin(topDirect[readIndex].first, topDirect[readIndex].second) == GPIO_PIN_SET) {
+        printf("directPass\n");
+      } else {
+        printf("directFail\n");
+      }
+      HAL_Delay(1);
+    }
+    HAL_Delay(100);
+    if (cBoardStatus != COMPLETELY_DONE) {
+      // Dummy transmit to tell the board under test to continue.
+      transmitBuffer[0] = CONTINUE;
+      HAL_UART_Transmit(&hUART, (unsigned char*) transmitBuffer, UART_command_length, 1000);
+    }
+  }
+}
+
+void cBoardCommand(char* line) {
+  uint8_t transmitBuffer[UART_command_length] = {0, 0, 0, 0, 0, 0, 0, 0};
+  char command[16];
+  int scan_status = sscanf(line, "%s %x %x %x %x %x %x %x %x",
+    &command,
+    transmitBuffer,
+    transmitBuffer + 1,
+    transmitBuffer + 2,
+    transmitBuffer + 3,
+    transmitBuffer + 4,
+    transmitBuffer + 5,
+    transmitBuffer + 6,
+    transmitBuffer + 7);
+  HAL_StatusTypeDef status = HAL_UART_Transmit(&hUART, (unsigned char*) transmitBuffer, UART_command_length, 100);
+
+  cBoardReceive(nullptr, 0);
+}
+
+void testDeviceId(void) {
+  printf("%08lx ", U_ID_0);
+  printf("%08lx ", U_ID_1);
+  printf("%08lx\n", U_ID_2);
   HAL_Delay(1);
 }
 
@@ -900,7 +995,15 @@ int main(void)
         cBoardCommsOn();
       } else if (strcmp(command, "cBoardCommsOff") == 0) {
         cBoardCommsOff();
+      } else if (strcmp(command, "cBoardTestData") == 0) {
+        cBoardTestData();
+      } else if (strcmp(command, "testDeviceId") == 0) {
+        testDeviceId();
+      } else if (strcmp(command, "readTop") == 0) {
+        testTop(0, 63);
+        printf("\n");
       }
+      HAL_Delay(5);
       printf("%s done\n", command);
       HAL_Delay(1);
     }

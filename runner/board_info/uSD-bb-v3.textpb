@@ -1,5 +1,6 @@
 proto_version: 1
 expansion_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
   expansion_id: 0x6

@@ -274,12 +274,15 @@ static int8_t CDC_Receive_FS (uint8_t* Buf, uint32_t *Len)
     if (scanBufferDataEnd == scanBufferEnd) {
       // Wrap around because we wrote the end of the buffer.
       scanBufferDataEnd = scanBuffer;
+    } else if (scanBufferDataEnd + 1 == scanBufferDataStart) {
+      return USBD_FAIL;
     } else {
       // This may "lap" scanBufferDataStart which will corrupt the incoming data.
       scanBufferDataEnd++;
     }
   }
 
+  USBD_CDC_ReceivePacket(hUsbDevice_0);
   return (USBD_OK);
   /* USER CODE END 6 */
 }

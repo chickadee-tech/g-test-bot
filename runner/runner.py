@@ -1,12 +1,18 @@
 from __future__ import print_function
 
+import base64
 import binascii
+from colored import fore, style
+import datetime
 import math
 import os
 import os.path
 import serial
+import struct
 import sys
 import time
+
+from gcloud import datastore
 
 import flightstack_pb2
 from google.protobuf import text_format
@@ -18,15 +24,21 @@ import subprocess
 MEMORY_ADDRESS = 0b10100000
 SERIAL_ADDRESS = 0b10110000
 
+SERIAL_PAGE = 0b0000100000000000
+MEMORY_PAGE = 0b0000000000000000
+
 SHIPPING_BINARIES = {"F3FC": "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin",
-                     "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
+               "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
 
 PORT = {"0x48000000": "PA",
-        "0x48000400": "PB",
-        "0x48000800": "PC",
-        "0x48000c00": "PD",
-        "0x48001000": "PE",
-        "0x48001400": "PF"}
+      "0x48000400": "PB",
+      "0x48000800": "PC",
+      "0x48000c00": "PD",
+      "0x48001000": "PE",
+      "0x48001400": "PF"}
+
+ECHO = 0
+TEST_DATA = 1
 
 TOP_TO_FS = {
   0: "TIM1",
@@ -47,7 +59,7 @@ TOP_TO_FS = {
   15: "+BATT",
   16: "5V",
   17: "UART8_TX",
-  18: "UART7_RX",
+  18: "UART8_RX",
   19: "UART7_TX",
   20: "UART7_RX",
   21: "UART6_TX",
@@ -171,6 +183,28 @@ PIN_TO_FS = {
 
 TOP_IGNORE = ["i2c_SDA", "i2c_SCL", "HEIGHT_2", "HEIGHT_1", "3V3_0.3A_LL", "5V"]
 
+BROKEN_PINS = ["UART5_TX"]
+
+ACTIVE_LOG = []
+def logWarning(msg):
+  print("W: " + msg)
+  ACTIVE_LOG.append("W: " + msg)
+
+def logError(msg):
+  print("E: " + msg)
+  ACTIVE_LOG.append("E: " + msg)
+
+def logInfo(msg):
+  print("I: " + msg)
+  ACTIVE_LOG.append("I: " + msg)
+
+def clearLog():
+  global ACTIVE_LOG
+  ACTIVE_LOG = []
+
+def getLog():
+  return ACTIVE_LOG
+
 def addresses_to_pin(addresses):
   if not addresses:
     return ""
@@ -191,32 +225,58 @@ ser = serial.Serial(sys.argv[1], 115200, timeout=5)
 print(ser.name)
 
 def runCommand(command):
-  print(command)
+  logInfo(command)
   ser.write(bytes(command) + b'\n')
   command = command.split(" ")[0]
+  responses = []
   while True:
     response = ser.readline().strip("\n")
-    print(response)
+    if response == "":
+      continue
     if response == command + " done":
       break
-  print()
+    logInfo(response)
+    responses.append(response)
+  logInfo("")
+  return responses
+
+def runTest(command, passResponse = None, msg = None):
+  logInfo(command)
+  ser.write(bytes(command) + b'\n')
+  command = command.split(" ")[0]
+  ok = passResponse == None
+  while True:
+    response = ser.readline().strip("\n")
+    if response == "":
+      continue
+    if response == command + " done":
+      break
+    ok = ok or response == passResponse
+    logInfo(response)
+  if not ok and msg:
+    logError(msg)
+  logInfo("")
+  return ok
 
 def i2cRead(deviceAddress, memoryAddress, bytesToRead):
-  runCommand("i2cRead " + str(deviceAddress) + " " + str(memoryAddress) + " " + str(bytesToRead))
+  response = runCommand("i2cRead " + str(deviceAddress) + " " + str(memoryAddress) + " " + str(bytesToRead))
+  return response[-1]
 
 def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
   command = "i2cWrite " + str(deviceAddress) + " " + str(memoryAddress) + " " + str(len(bytesToWrite))
-  print(command)
+  logInfo(command)
   ser.write(bytes(command) + b'\n')
   command = command.split(" ")[0]
   offset = 0
   while True:
     response = ser.readline().strip("\n")
-    print(response)
     if response == "":
       continue
     if response.startswith("debug"):
+      logInfo(response)
       continue
+    if response == "i2cWrite done":
+      break
     if response == "ok":
       bytes_to_this_page = min(32, len(bytesToWrite) - offset)
       if bytes_to_this_page == 0:
@@ -230,7 +290,7 @@ def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
           spaceSeparatedHex.append(" ")
       spaceSeparatedHex = "".join(spaceSeparatedHex)
 
-      print("writing " + spaceSeparatedHex)
+      logInfo("writing " + spaceSeparatedHex)
 
       data = bytes(spaceSeparatedHex) + b'\n'
 
@@ -238,24 +298,69 @@ def i2cWrite(deviceAddress, memoryAddress, bytesToWrite):
       ser.write(data)
       offset += bytes_to_this_page
     else:
+      logError("Unknown response: " + response)
+      logInfo("")
       return False
-    if response == "i2cWrite done":
-      break
-  print()
+  logInfo("")
   return True
 
-def testDataPins():
+PORT_NAME_TO_ATTR = {"TIM": "single_timer_config",
+               "GPIO": "gpio_config",
+               "UART": "serial_config",
+               "TIMG": "timer_group_config",
+               "ADC": "adc_config",
+               "SPI": "spi_config"}
+def dataPinOk(board_info, pin_name, shorts, top):
+  if pin_name in BROKEN_PINS:
+    logWarning("Skipping test of " + pin_name + " pin.")
+    # TODO(tannewt): Do this on per jig basis.
+    return True
+
+  if (pin_name in ["HEIGHT_1", "HEIGHT_2", "HEIGHT_4"] and not shorts and not top):
+    return True
+  if len(shorts) > 0 and not pin_name.startswith("UART"):
+    logError(pin_name + " is shorted to " + str(shorts))
+    return False
+  if pin_name.startswith(("TIM", "GPIO", "UART", "TIMG", "ADC", "SPI")):
+    suffix = ""
+    prefix = pin_name
+    if "_" in pin_name:
+      prefix, suffix = pin_name.split("_")
+      suffix = "_" + suffix
+    input_index = int(prefix[-1:])
+    prefix = prefix[:-1]
+    shift = len(getattr(board_info, PORT_NAME_TO_ATTR[prefix]))
+    if shift >= input_index and not top:
+      return True
+    output_name = prefix + str(input_index - shift) + suffix
+
+    if ((output_name == "UART1_TX" and shorts == ["SPI2_NSS"] and not top) or
+       (output_name == "UART1_RX" and shorts == ["SPI2_SCK"] and not top)):
+      return True
+    if top != [output_name] or shorts:
+      print(top, output_name, shorts)
+      logError("Bottom " + pin_name + " is connected to incorrect top pin(s): " + str(top))
+      return False
+
+  elif top != [pin_name]:
+    logError("Bottom " + pin_name + " is connected to incorrect top pin(s): " + str(top))
+    return False
+  return True
+
+def testDataPins(board_info):
+  logInfo("testData")
   ser.write(b'testData\n')
   response = None
+  ok = True
   while True:
     response = ser.readline().strip("\n")
     if response == "testData done":
       break
     if response.startswith("debug"):
-      print(response)
+      logInfo(response)
       continue
     if response.count(" ") != 2:
-      print(response)
+      logWarning(response)
       continue
     pin, shorts, top = response.split(" ")
     if shorts == "":
@@ -268,9 +373,45 @@ def testDataPins():
       top = top.split(",")
     top = map(top_to_fs, top)
     top = [x for x in top if x not in TOP_IGNORE]
-    print(pin_to_fs(addresses_to_pin(pin)), map(pin_to_fs, map(addresses_to_pin, shorts)), top)
+    pin_name = pin_to_fs(addresses_to_pin(pin))
+    shorts = map(pin_to_fs, map(addresses_to_pin, shorts))
+    ok = dataPinOk(board_info, pin_name, shorts, top) and ok
+  logInfo("")
+  return ok
 
-  print()
+def cBoardTestData():
+  command = "cBoardTestData"
+  ser.write(bytes(command) + b'\n')
+  command = command.split(" ")[0]
+  ok = True
+  spare_bytes = []
+  first_line = True
+  while True:
+    response = ser.readline().strip("\n")
+    if response == "":
+      continue
+    if response == command + " done":
+      break
+    if response.count(" ") == 9:
+      b = response.strip().split()
+      if first_line:
+        print(addresses_to_pin("0x" + "".join(b[1+1:1+1+4]) + "_" + "".join(b[1+1+4:1+1+4+2])))
+        #print(b[1])
+        spare_bytes.extend(b[1+4+2+1:])
+      else:
+        spare_bytes.extend(b[1:])
+        while len(spare_bytes) >= 6:
+          print(addresses_to_pin("0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
+          spare_bytes = spare_bytes[6:]
+      if b[0] == "00":
+        first_line = False
+      else:
+        spare_bytes = []
+        first_line = True
+    else:
+      print(response)
+      pass
+  return ok
 
 board = sys.argv[2]
 
@@ -281,135 +422,162 @@ if os.path.isfile(board_info_fn):
   with open(board_info_fn) as f:
     text_format.Merge(f.read(), board_info)
 
-print(board_info)
+if board not in ["F3FC", "F4FC"] and board_info.expansion_info.manufacturer_id == 0:
+  print("manufacturer_id must not be zero for manufactured boards.")
+  sys.exit(-1)
 
-runCommand("noled")
+testDeviceId = runCommand("testDeviceId")[-1]
+print("Test device id:", testDeviceId)
 
-#runCommand("clearPins")
+google_client = datastore.Client("chickadee-tech-board-history")
 
-device_id = [1, 2, 3]
+testing = True
+while testing:
+  print()
+  print("Press GO to test next board.")
+  runCommand("waitForButton")
+  print("Testing in progress")
 
-if board not in ["F3FC", "F4FC"]:
-  #testDataPins()
-  pass
+  clearLog()
+  ok = True
 
-OK_SHORTS = {"3V3_0.3A_LL": ["5V", "GND"], "5V": ["3V3_0.3A_LL", "GND"], "GND": ["3V3_0.3A_LL", "5V"]}
-okToPower = True
-print("testPower")
-ser.write(b'testPower\n')
-response = None
-while True:
-  response = ser.readline().strip("\n")
-  if response == "testPower done":
-    break
-  if response.startswith("debug"):
-    print(response)
-    continue
-  if response == "":
-    print("empty")
-    continue
-  if response.count(" ") > 2:
-    print(response)
-    continue
-  pin, shorts, top = response.split(" ")
-  pin = pin_to_fs(addresses_to_pin(pin))
-  if shorts == "":
-    shorts = []
-  else:
-    shorts = shorts.split(",")
-  shorts = map(pin_to_fs, map(addresses_to_pin, shorts))
-  if top == "":
-    top = []
-  else:
-    top = top.split(",")
-  top = map(top_to_fs, top)
-  top = [x for x in top if x not in TOP_IGNORE]
-  print(pin, shorts, top)
-  if pin not in OK_SHORTS or any([short not in OK_SHORTS[pin] for short in shorts]):
-    okToPower = False
+  startTime = time.time()
+  serial_number = "unknown"
+  runCommand("noled")
 
-if okToPower:
-  runCommand("powerOn")
 
   if board not in ["F3FC", "F4FC"]:
-    #testDataPins()
+    ok = testDataPins(board_info) and ok
 
-    runCommand("testHeight")
+  powerOk = runTest("powerOn", "powerFaultPostcheckOK", "Failed to turn on power.")
+  ok = ok and powerOk
 
-    runCommand("heightOn")
-    #time.sleep(1)
+  if powerOk:
+    if board not in ["F3FC", "F4FC"]:
+      ok = runTest("testHeight", "heightPass") and ok
 
-    runCommand("i2cOn")
-    #time.sleep(1)
+      runCommand("heightOn")
 
-    #runCommand("i2cReady " + str(SERIAL_ADDRESS))
-    #time.sleep(1)
+      runCommand("i2cOn")
 
-    runCommand("i2cReady " + str(SERIAL_ADDRESS))
-    runCommand("i2cReady " + str(MEMORY_ADDRESS))
-    #time.sleep(1)
+      ok = runTest("i2cReady " + str(SERIAL_ADDRESS), "ok", "Serial number not ready. I2C lines probably hosed.") and ok
+      ok = runTest("i2cReady " + str(MEMORY_ADDRESS), "ok", "Memory address not ready. I2C lines probably hosed.") and ok
 
-    #i2cRead(SERIAL_ADDRESS, 0, 16)
-    #time.sleep(1)
+      serial_number = i2cRead(SERIAL_ADDRESS, SERIAL_PAGE, 16)
+      serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
-    i2cRead(SERIAL_ADDRESS, 0b0000100000000000, 16)
-    i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
-    #time.sleep(1)
+      # Set manufacturing info into the board info.
+      for part in map(binascii.unhexlify, testDeviceId.split()):
+        board_info.manufacturing_info.test_device_id.append(struct.unpack("<L", part)[0])
+      board_info.manufacturing_info.test_time = long(startTime)
+      serialized_board_info = board_info.SerializeToString()
+      delimiter = encoder._VarintBytes(len(serialized_board_info))
 
-    # Set manufacturing info into the board info.
-    for part in device_id:
-      board_info.manufacturing_info.test_device_id.append(part)
-    board_info.manufacturing_info.test_time = long(time.time())
-    serialized_board_info = board_info.SerializeToString()
-    delimiter = encoder._VarintBytes(len(serialized_board_info))
+      ok = i2cWrite(MEMORY_ADDRESS + 1, MEMORY_PAGE, delimiter + serialized_board_info) and ok
 
-    i2cWrite(MEMORY_ADDRESS + 1, 0b0000000000000000, delimiter + serialized_board_info)
+      runCommand("i2cOff")
 
-    i2cRead(MEMORY_ADDRESS, 0b0000000000000000, 16)
+      runCommand("heightOff")
+    else:
+      # Wait for bootup.
+      time.sleep(0.5)
+      logInfo("Flashing " + "builds/F3FC/test.bin")
+      subprocess.call(["st-flash", "write", "builds/F3FC/test.bin", " 0x8000000"], stdout=subprocess.PIPE)
 
-    runCommand("i2cOff")
+      # Cold restart
+      runCommand("powerOff")
 
-    #time.sleep(10)
+      time.sleep(1)
 
-    #time.sleep(100)
+      runCommand("powerOn")
+      time.sleep(0.5)
 
-    runCommand("heightOff")
-  else:
-    time.sleep(2.5)
-    subprocess.call(["st-flash", "write", "builds/F3FC/test.bin", " 0x8000000"], stdout=subprocess.PIPE)
+      # Read the top pins. These should always be high: ['i2c_SDA', 'i2c_SCL', 'HEIGHT_1', '3V3_0.3A_LL', '5V', 'GPIO1', 'RESET']. GPIO1 is in SWD state by default.
+      response = runCommand("readTop")
+      if len(response) == 0:
+        ok = False
+        logError("No response from control board under test.")
 
-    # Cold restart
+      # Read the unique device id.
+      # runCommand
+
+      if response[0] != "8,9,12,13,16,1001,1003":
+        ok = False
+        logInfo(", ".join([top_to_fs(x) + " (" + str(x) +")" for x in response[0].split(",")]))
+        logError("Default pin state not as expected. Is the 3.3v regulator working?")
+
+      # Test the local pins for shorts.
+
+      # Test the gyro.
+
+      # Test the connections to the polystack connector.
+      if ok:
+        runCommand("cBoardCommsOn")
+        cBoardTestData()
+        #time.sleep(4)
+        time.sleep(0.2)
+        #runCommand("cBoardCommand " + str(ECHO) + " ff 02 fe 03 fd 04 fc")
+        #runCommand("cBoardCommand " + str(ECHO) + " ff 03 fe 03 fd 04 fc")
+        #runCommand("cBoardCommand " + str(ECHO) + " ff 04 fe 03 fd 04 fc")
+        runCommand("cBoardCommsOff")
+
+      # Flash shipping firmware.
+      if ok:
+        logInfo("Flashing " + SHIPPING_BINARIES[board])
+        #subprocess.call(["st-flash", "write", SHIPPING_BINARIES[board], " 0x8000000"], stdout=subprocess.PIPE)
+
     runCommand("powerOff")
 
-    time.sleep(2)
+  if ok:
+    runCommand("pass")
+    print(fore.LIGHT_GREEN +
+"""########     ###     ######   ######
+##     ##   ## ##   ##    ## ##    ##
+##     ##  ##   ##  ##       ##
+########  ##     ##  ######   ######
+##        #########       ##       ##
+##        ##     ## ##    ## ##    ##
+##        ##     ##  ######   ######  """ + style.RESET)
+  else:
+    runCommand("fail")
+    print(fore.LIGHT_RED + """########    ###    #### ##
+##         ## ##    ##  ##
+##        ##   ##   ##  ##
+######   ##     ##  ##  ##
+##       #########  ##  ##
+##       ##     ##  ##  ##
+##       ##     ## #### ######## """ + style.RESET)
+  print()
 
-    runCommand("powerOn")
-    time.sleep(4)
 
-    # Run the tests.
-    runCommand("cBoardCommsOn")
-    time.sleep(5)
-    runCommand("cBoardCommand 01 ff 02 fe 03 fd 04 fc")
-    time.sleep(0.1)
-    runCommand("cBoardCommand 01 ff 03 fe 03 fd 04 fc")
-    time.sleep(0.1)
-    runCommand("cBoardCommand 01 ff 04 fe 03 fd 04 fc")
-    time.sleep(5)
-    runCommand("cBoardCommsOff")
+  testDuration = time.time() - startTime
+  logInfo(str(testDuration) + " second duration")
 
-    time.sleep(5)
+  testDeviceIdB64 = base64.urlsafe_b64encode(binascii.unhexlify(testDeviceId.replace(" ", "")))
 
-    # Flash shipping firmware.
-    #subprocess.call(["st-flash", "write", SHIPPING_BINARIES[board], " 0x8000000"], stdout=subprocess.PIPE)
+  print("Saving test results to cloud.")
+  saveStartTime = time.time()
+  parent_key = google_client.key("Board", unicode(serial_number))
+  boardInfo = datastore.Entity(key=parent_key)
+  boardInfo.update({"board_id": unicode(serial_number)})
+  google_client.put(boardInfo)
 
-  runCommand("powerOff")
+  key = google_client.key("TestRun", unicode(str(long(startTime)) + "/" + testDeviceIdB64), parent=parent_key)
+  runInfo = datastore.Entity(key=key, exclude_from_indexes=['log'])
+  runInfo.update(
+    {
+     "test_device_id": unicode(testDeviceIdB64),
+     "test_time": datetime.datetime.fromtimestamp(startTime),
+     "test_duration_sec": testDuration,
+     "pass": ok,
+     "board_name": unicode(board),
+     "log": unicode("\n".join(getLog()))})
 
-  #runCommand("waitForButton")
+  google_client.put(runInfo)
+  print("Cloud save took",time.time() - saveStartTime,"seconds.")
 
-if okToPower:
-  ser.write(b'pass\n')
-else:
-  ser.write(b'fail\n')
+  # getLog()
+
 response = ser.readline()
 print(response)
 ser.close()
