@@ -47,6 +47,8 @@
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
+extern const char *gitversion;
+extern const char *build_date;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -1018,6 +1020,8 @@ int main(void)
         HAL_Delay(2000);
         HAL_GPIO_WritePin(RESET_GPIOx, RESET_Pin, GPIO_PIN_SET);
         Input_Z(RESET_GPIOx, RESET_Pin);
+      } else if (strcmp(command, "testBuildInfo") == 0) {
+        printf("%s %s\n", gitversion, build_date);
       }
       HAL_Delay(5);
       printf("%s done\n", command);

@@ -43,17 +43,18 @@ C_SOURCES = \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_rcc_ex.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_uart.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_uart_ex.c \
-	Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c \
-	Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c \
-	Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
-	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c \
-	Src/usb_device.c \
-	Src/usbd_conf.c \
-	Src/usbd_desc.c \
-	Src/usbd_cdc_if.c \
+Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c \
+Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c \
+Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
+Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c \
+Src/usb_device.c \
+Src/usbd_conf.c \
+Src/usbd_desc.c \
+Src/usbd_cdc_if.c \
   Src/stm32f3xx_hal_msp.c \
   Src/stm32f3xx_it.c \
-	Src/newlib_stubs.c
+	Src/newlib_stubs.c \
+	$(BUILD_DIR)/build_info.c
 CPP_SOURCES = \
 	  Src/main.cpp
 ASM_SOURCES = \
@@ -121,6 +122,11 @@ vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
 # list of ASM program objects
 OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
 vpath %.s $(sort $(dir $(ASM_SOURCES)))
+
+$(BUILD_DIR)/build_info.c: .FORCE
+	echo "const char *gitversion = \"$(shell git describe --tags --always --dirty)\";\nconst char *build_date = \"$(shell date)\";" > $@
+
+.FORCE:
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@

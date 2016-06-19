@@ -41,9 +41,12 @@ C_SOURCES = \
   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
   Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
-  Src/main.c \
   Src/stm32f4xx_hal_msp.c \
-  Src/stm32f4xx_it.c  
+  Src/stm32f4xx_it.c \
+  Src/newlib_stubs.c
+CPP_SOURCES = \
+  Src/main.cpp \
+
 ASM_SOURCES = \
   Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/gcc/startup_stm32f405xx.s
 
@@ -51,13 +54,14 @@ ASM_SOURCES = \
 # binaries
 #######################################
 CC = arm-none-eabi-gcc
+CPP = arm-none-eabi-g++
 AS = arm-none-eabi-gcc -x assembler-with-cpp
 CP = arm-none-eabi-objcopy
 AR = arm-none-eabi-ar
 SZ = arm-none-eabi-size
 HEX = $(CP) -O ihex
 BIN = $(CP) -O binary -S
- 
+
 #######################################
 # CFLAGS
 #######################################
@@ -74,8 +78,10 @@ C_INCLUDES += -IDrivers/CMSIS/Device/ST/STM32F4xx/Include
 # compile gcc flags
 ASFLAGS = -mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 CFLAGS = -mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+CPPFLAGS = -mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -std=c++11
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2
+CPPFLAGS += -g -gdwarf-2
 endif
 # Generate dependency information
 CFLAGS += -MD -MP -MF .dep/$(@F).d
@@ -86,7 +92,7 @@ CFLAGS += -MD -MP -MF .dep/$(@F).d
 # link script
 LDSCRIPT = STM32F405VGTx_FLASH.ld
 # libraries
-LIBS = -lc -lm -lnosys
+LIBS = -lc -lm -lstdc++
 LIBDIR =
 LDFLAGS = -mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
 
@@ -99,12 +105,17 @@ all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET
 # list of objects
 OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
 vpath %.c $(sort $(dir $(C_SOURCES)))
+OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(CPP_SOURCES:.cpp=.o)))
+vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
 # list of ASM program objects
 OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
 vpath %.s $(sort $(dir $(ASM_SOURCES)))
 
-$(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
+$(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+
+$(BUILD_DIR)/%.o: %.cpp Makefile | $(BUILD_DIR)
+	$(CPP) -c $(CPPFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.cpp=.lst)) $< -o $@
 
 $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
@@ -115,19 +126,19 @@ $(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
 
 $(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
 	$(HEX) $< $@
-	
+
 $(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
-	$(BIN) $< $@	
-	
+	$(BIN) $< $@
+
 $(BUILD_DIR):
-	mkdir -p $@		
+	mkdir -p $@
 
 #######################################
 # clean up
 #######################################
 clean:
 	-rm -fR .dep $(BUILD_DIR)
-  
+
 #######################################
 # dependencies
 #######################################

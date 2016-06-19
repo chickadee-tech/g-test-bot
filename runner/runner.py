@@ -30,12 +30,20 @@ MEMORY_PAGE = 0b0000000000000000
 SHIPPING_BINARIES = {"F3FC": "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin",
                "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
 
-PORT = {"0x48000000": "PA",
-      "0x48000400": "PB",
-      "0x48000800": "PC",
-      "0x48000c00": "PD",
-      "0x48001000": "PE",
-      "0x48001400": "PF"}
+PORT = {"F3FC": {"0x48000000": "PA",
+            "0x48000400": "PB",
+            "0x48000800": "PC",
+            "0x48000c00": "PD",
+            "0x48001000": "PE",
+            "0x48001400": "PF"},
+      "F4FC": {"0x40020000": "PA",
+            "0x40020400": "PB",
+            "0x40020800": "PC",
+            "0x40020c00": "PD",
+            "0x40021000": "PE",
+            "0x40021400": "PF",
+            "0x40021800": "PG",
+            "0x40021c00": "PH"}}
 
 ECHO = 0
 TEST_DATA = 1
@@ -189,24 +197,24 @@ TOP_IGNORE = ["i2c_SDA", "i2c_SCL", "HEIGHT_2", "HEIGHT_1", "3V3_0.3A_LL", "5V"]
 
 BROKEN_PINS = ["UART5_TX"]
 
-EXPECTED_INTERNAL_HIGH = {"F3FC": ["PA12", "PC13", "PC14", "PC15"]}
+EXPECTED_INTERNAL_HIGH = {"F3FC": ["PA12", "PC13", "PC14", "PC15"], "F4FC": ["PC13", "PC14", "PC15"]}
 
 GYRO_TEST_EXPECTED_09 = [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 21]
 
 ACTIVE_LOG = []
 def logWarning(msg):
   msg = msg.replace("\n", "\nW: ")
-  #print("W: " + msg)
+  print("W: " + msg)
   ACTIVE_LOG.append("W: " + msg)
 
 def logError(msg):
   msg = msg.replace("\n", "\nE: ")
-  #print("E: " + msg)
+  print("E: " + msg)
   ACTIVE_LOG.append("E: " + msg)
 
 def logInfo(msg):
   msg = msg.replace("\n", "\nI: ")
-  #print("I: " + msg)
+  print("I: " + msg)
   ACTIVE_LOG.append("I: " + msg)
 
 def clearLog():
@@ -216,11 +224,11 @@ def clearLog():
 def getLog():
   return ACTIVE_LOG
 
-def addresses_to_pin(addresses):
+def addresses_to_pin(board, addresses):
   if not addresses:
     return ""
   port, pin = addresses.split("_")
-  return PORT[port] + str(int(math.log(int("0x"+pin, 0), 2)))
+  return PORT[board][port] + str(int(math.log(int("0x"+pin, 0), 2)))
 
 def top_to_fs(top):
   if int(top) in TOP_TO_FS:
@@ -358,7 +366,7 @@ def dataPinOk(board_info, pin_name, shorts, top):
     return False
   return True
 
-def testDataPins(board_info):
+def testDataPins(board, board_info):
   logInfo("testData")
   ser.write(b'testData\n')
   response = None
@@ -384,13 +392,14 @@ def testDataPins(board_info):
       top = top.split(",")
     top = map(top_to_fs, top)
     top = [x for x in top if x not in TOP_IGNORE]
-    pin_name = pin_to_fs(addresses_to_pin(pin))
-    shorts = map(pin_to_fs, map(addresses_to_pin, shorts))
+    pin_name = pin_to_fs(addresses_to_pin(board, pin))
+    shorts = map(pin_to_fs, map(lambda x: addresses_to_pin(board, x), shorts))
     ok = dataPinOk(board_info, pin_name, shorts, top) and ok
   logInfo("")
   return ok
 
-def cBoardTestData():
+def cBoardTestData(board):
+  logInfo("cBoardTestData")
   command = "cBoardTestData"
   ser.write(bytes(command) + b'\n')
   command = command.split(" ")[0]
@@ -409,13 +418,13 @@ def cBoardTestData():
     if response.count(" ") == 9:
       b = response.strip().split()
       if first_line:
-        pin = addresses_to_pin("0x" + "".join(b[1+1:1+1+4]) + "_" + "".join(b[1+1+4:1+1+4+2]))
+        pin = addresses_to_pin(board, "0x" + "".join(b[1+1:1+1+4]) + "_" + "".join(b[1+1+4:1+1+4+2]))
         #print(b[1])
         spare_bytes.extend(b[1+4+2+1:])
       else:
         spare_bytes.extend(b[1:])
         while len(spare_bytes) >= 6:
-          high_pins.append(addresses_to_pin("0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
+          high_pins.append(board, addresses_to_pin("0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
           spare_bytes = spare_bytes[6:]
       if b[0] == "00":
         first_line = False
@@ -431,6 +440,8 @@ def cBoardTestData():
         ok = False
       spare_bytes = []
       first_line = True
+
+  logInfo("")
   return ok
 
 def cBoardTestInternalData(board):
@@ -445,7 +456,7 @@ def cBoardTestInternalData(board):
   for line in lines:
     b = line.strip().split()
     if first_line:
-      pin = addresses_to_pin("0x" + "".join(b[1:4+1]) + "_" + "".join(b[1+4:1+4+2]))
+      pin = addresses_to_pin(board, "0x" + "".join(b[1:4+1]) + "_" + "".join(b[1+4:1+4+2]))
       #print(b[1])
       spare_bytes.extend(b[1+4+2:])
     else:
@@ -456,7 +467,7 @@ def cBoardTestInternalData(board):
         spare_bytes = spare_bytes[6:]
         if port == "00000000":
           continue
-        high_pin = addresses_to_pin("0x" + port + "_" + high_pin)
+        high_pin = addresses_to_pin(board, "0x" + port + "_" + high_pin)
         if very_first or high_pin not in EXPECTED_INTERNAL_HIGH[board]:
           high_pins.append(high_pin)
     if b[0] == "00":
@@ -499,20 +510,21 @@ def cBoardTestGyro():
     product_id = receivedBytes[2]
     logInfo("Product id: " + product_id)
     for axis in xrange(0,3):
-      error = receivedBytes[14 + axis]
-      logInfo("Accel axis " + str(axis) + " error is " + error)
-      if int(error, 16) >= 14:
+      error = int(receivedBytes[14 + axis], 16)
+      logInfo("Accel axis " + str(axis) + " error is " + str(error) + "%")
+      if error >= 14:
         logError("Accel axis " + str(axis) + " error is too high!")
         ok = False
     for axis in xrange(0,3):
-      error = receivedBytes[18 + axis]
-      logInfo("Gyro axis " + str(axis) + " error is " + error)
-      if int(error, 16) >= 14:
+      error = int(receivedBytes[18 + axis], 16)
+      logInfo("Gyro axis " + str(axis) + " error is " + str(error) + "%")
+      if error >= 14:
         logError("Gyro axis " + str(axis) + " error is too high!")
         ok = False
 
   if not ok:
     logInfo("Gyro response: " + str(receivedBytes))
+  logInfo("")
   return ok
 
 def flash(filename):
@@ -538,8 +550,12 @@ if board not in ["F3FC", "F4FC"] and board_info.expansion_info.manufacturer_id =
   print("manufacturer_id must not be zero for manufactured boards.")
   sys.exit(-1)
 
+build_info = runCommand("testBuildInfo")[-1]
+print("Test jig build:", build_info)
+
 testDeviceId = runCommand("testDeviceId")[-1]
 print("Test device id:", testDeviceId)
+
 
 google_client = datastore.Client("chickadee-tech-board-history")
 
@@ -593,11 +609,12 @@ while testing:
       noFatal = True
       # Wait for bootup.
       time.sleep(0.5)
-      returncode = flash("builds/F3FC/test.bin")
+      testBin = "builds/" + board + "/test.bin"
+      returncode = flash(testBin)
       if returncode != 0:
         logWarning("Initial flash failed. Has this board been tested before?")
         runCommand("resetToBL")
-        returncode = flash("builds/F3FC/test.bin")
+        returncode = flash(testBin)
         if returncode != 0:
           logError("Second flash attempt failed. Bad board.")
           noFatal = False
@@ -630,7 +647,7 @@ while testing:
         serial_number = responses[0][3:] + responses[1][3:14]
         serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
-      if topResponse and topResponse[0] != "8,9,12,13,16,1001,1003":
+      if topResponse and topResponse[0] != "12,13,16,1001,1003":
         ok = False
         logInfo(", ".join([top_to_fs(x) + " (" + str(x) +")" for x in topResponse[0].split(",")]))
         logError("Default pin state not as expected. Is the 3.3v regulator working?")
@@ -648,7 +665,7 @@ while testing:
 
         # Test the connections to the polystack connector.
         time.sleep(0.1)
-        ok = cBoardTestData() and ok
+        ok = cBoardTestData(board) and ok
         #time.sleep(4)
         time.sleep(0.1)
         #runCommand("cBoardCommand " + str(ECHO) + " ff 02 fe 03 fd 04 fc")
@@ -710,6 +727,7 @@ while testing:
      "test_device_id": unicode(testDeviceIdB64),
      "test_time": datetime.datetime.fromtimestamp(startTime),
      "test_duration_sec": testDuration,
+     "test_jig_build_info": unicode(build_info),
      "pass": ok,
      "board_name": unicode(board),
      "log": unicode("\n".join(getLog()))})
