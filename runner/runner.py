@@ -39,6 +39,10 @@ PORT = {"0x48000000": "PA",
 
 ECHO = 0
 TEST_DATA = 1
+CONTINUE = 2
+TEST_INTERNAL_DATA = 3
+READ_UNIQUE_ID = 4
+TEST_GYRO = 5
 
 TOP_TO_FS = {
   0: "TIM1",
@@ -185,17 +189,24 @@ TOP_IGNORE = ["i2c_SDA", "i2c_SCL", "HEIGHT_2", "HEIGHT_1", "3V3_0.3A_LL", "5V"]
 
 BROKEN_PINS = ["UART5_TX"]
 
+EXPECTED_INTERNAL_HIGH = {"F3FC": ["PA12", "PC13", "PC14", "PC15"]}
+
+GYRO_TEST_EXPECTED_09 = [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 21]
+
 ACTIVE_LOG = []
 def logWarning(msg):
-  print("W: " + msg)
+  msg = msg.replace("\n", "\nW: ")
+  #print("W: " + msg)
   ACTIVE_LOG.append("W: " + msg)
 
 def logError(msg):
-  print("E: " + msg)
+  msg = msg.replace("\n", "\nE: ")
+  #print("E: " + msg)
   ACTIVE_LOG.append("E: " + msg)
 
 def logInfo(msg):
-  print("I: " + msg)
+  msg = msg.replace("\n", "\nI: ")
+  #print("I: " + msg)
   ACTIVE_LOG.append("I: " + msg)
 
 def clearLog():
@@ -235,7 +246,7 @@ def runCommand(command):
       continue
     if response == command + " done":
       break
-    logInfo(response)
+    #logInfo(response)
     responses.append(response)
   logInfo("")
   return responses
@@ -386,6 +397,9 @@ def cBoardTestData():
   ok = True
   spare_bytes = []
   first_line = True
+  pin = None
+  high_pins = []
+  previous_response = None
   while True:
     response = ser.readline().strip("\n")
     if response == "":
@@ -395,23 +409,121 @@ def cBoardTestData():
     if response.count(" ") == 9:
       b = response.strip().split()
       if first_line:
-        print(addresses_to_pin("0x" + "".join(b[1+1:1+1+4]) + "_" + "".join(b[1+1+4:1+1+4+2])))
+        pin = addresses_to_pin("0x" + "".join(b[1+1:1+1+4]) + "_" + "".join(b[1+1+4:1+1+4+2]))
         #print(b[1])
         spare_bytes.extend(b[1+4+2+1:])
       else:
         spare_bytes.extend(b[1:])
         while len(spare_bytes) >= 6:
-          print(addresses_to_pin("0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
+          high_pins.append(addresses_to_pin("0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
           spare_bytes = spare_bytes[6:]
       if b[0] == "00":
         first_line = False
-      else:
-        spare_bytes = []
-        first_line = True
+    elif response == "timeout":
+      logError("Serial failed to board under test.")
+      ok = False
     else:
-      print(response)
-      pass
+      if high_pins:
+        logError(pin + " is shorted to " + str(high_pins))
+        ok = False
+      if response not in ["topPass", "directPass"]:
+        logError(pin + " isn't connect to the top: " + response)
+        ok = False
+      spare_bytes = []
+      first_line = True
   return ok
+
+def cBoardTestInternalData(board):
+  lines = runCommand("cBoardCommand " + str(TEST_INTERNAL_DATA) + " 00 00 00 00 00 00 00")
+
+  ok = True
+  spare_bytes = []
+  first_line = True
+  very_first = True
+  pin = None
+  high_pins = []
+  for line in lines:
+    b = line.strip().split()
+    if first_line:
+      pin = addresses_to_pin("0x" + "".join(b[1:4+1]) + "_" + "".join(b[1+4:1+4+2]))
+      #print(b[1])
+      spare_bytes.extend(b[1+4+2:])
+    else:
+      spare_bytes.extend(b[1:])
+      while len(spare_bytes) >= 6:
+        port = "".join(spare_bytes[:4])
+        high_pin = "".join(spare_bytes[4:4+2])
+        spare_bytes = spare_bytes[6:]
+        if port == "00000000":
+          continue
+        high_pin = addresses_to_pin("0x" + port + "_" + high_pin)
+        if very_first or high_pin not in EXPECTED_INTERNAL_HIGH[board]:
+          high_pins.append(high_pin)
+    if b[0] == "00":
+      first_line = False
+    else:
+      if very_first:
+        for p in EXPECTED_INTERNAL_HIGH[board]:
+          if p not in high_pins:
+            logError("Expected " + p + " to be high.")
+            ok = False
+          else:
+            high_pins.remove(p)
+        very_first = False
+      if high_pins:
+        logError(pin + " shorted to: " + ", ".join(high_pins))
+        ok = False
+      pin = None
+      high_pins = []
+      spare_bytes = []
+      first_line = True
+  return ok
+
+
+def cBoardTestGyro():
+  lines = runCommand("cBoardCommand " + str(TEST_GYRO) + " 00 00 00 00 00 00 00")
+  receivedBytes = []
+  ok = True
+  for line in lines:
+    receivedBytes.extend(line.strip().split()[1:])
+
+  for pos in GYRO_TEST_EXPECTED_09:
+    if receivedBytes[pos] != "09":
+      ok = False
+      logError("Position " + str(pos) + " not 09 as expected to indicate successful write to gyro.")
+  who_am_i = receivedBytes[1]
+  if who_am_i != "68":
+    ok = False
+    logError("Wrong WHO_AM_I. Gyro probably not inited right.")
+  if ok:
+    product_id = receivedBytes[2]
+    logInfo("Product id: " + product_id)
+    for axis in xrange(0,3):
+      error = receivedBytes[14 + axis]
+      logInfo("Accel axis " + str(axis) + " error is " + error)
+      if int(error, 16) >= 14:
+        logError("Accel axis " + str(axis) + " error is too high!")
+        ok = False
+    for axis in xrange(0,3):
+      error = receivedBytes[18 + axis]
+      logInfo("Gyro axis " + str(axis) + " error is " + error)
+      if int(error, 16) >= 14:
+        logError("Gyro axis " + str(axis) + " error is too high!")
+        ok = False
+
+  if not ok:
+    logInfo("Gyro response: " + str(receivedBytes))
+  return ok
+
+def flash(filename):
+  logInfo("Flashing " + filename)
+  p = subprocess.Popen(["st-flash", "write", filename, " 0x8000000"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  out, err = p.communicate()
+  logInfo(out)
+  logError(err)
+  returncode = p.poll()
+  logInfo("Return code: " + str(returncode))
+  return returncode
 
 board = sys.argv[2]
 
@@ -444,7 +556,6 @@ while testing:
   startTime = time.time()
   serial_number = "unknown"
   runCommand("noled")
-
 
   if board not in ["F3FC", "F4FC"]:
     ok = testDataPins(board_info) and ok
@@ -479,56 +590,84 @@ while testing:
 
       runCommand("heightOff")
     else:
+      noFatal = True
       # Wait for bootup.
       time.sleep(0.5)
-      logInfo("Flashing " + "builds/F3FC/test.bin")
-      subprocess.call(["st-flash", "write", "builds/F3FC/test.bin", " 0x8000000"], stdout=subprocess.PIPE)
+      returncode = flash("builds/F3FC/test.bin")
+      if returncode != 0:
+        logWarning("Initial flash failed. Has this board been tested before?")
+        runCommand("resetToBL")
+        returncode = flash("builds/F3FC/test.bin")
+        if returncode != 0:
+          logError("Second flash attempt failed. Bad board.")
+          noFatal = False
 
       # Cold restart
       runCommand("powerOff")
 
       time.sleep(1)
 
-      runCommand("powerOn")
-      time.sleep(0.5)
+      topResponse = None
+      if noFatal:
+        runCommand("powerOn")
+        time.sleep(0.5)
 
-      # Read the top pins. These should always be high: ['i2c_SDA', 'i2c_SCL', 'HEIGHT_1', '3V3_0.3A_LL', '5V', 'GPIO1', 'RESET']. GPIO1 is in SWD state by default.
-      response = runCommand("readTop")
-      if len(response) == 0:
-        ok = False
-        logError("No response from control board under test.")
+        # Read the top pins. These should always be high: ['i2c_SDA', 'i2c_SCL', 'HEIGHT_1', '3V3_0.3A_LL', '5V', 'GPIO1', 'RESET']. GPIO1 is in SWD state by default.
+        topResponse = runCommand("readTop")
+        if len(topResponse) == 0:
+          ok = False
+          noFatal = False
+          logError("No response from control board.")
 
       # Read the unique device id.
-      # runCommand
+      if noFatal:
+        runCommand("cBoardCommsOn")
+        responses = runCommand("cBoardCommand " + str(READ_UNIQUE_ID) + " 00 00 00 00 00 00 00")
+        if len(responses) == 0:
+          ok = False
+          noFatal = False
+          logError("No serial number response from board under test.")
+        serial_number = responses[0][3:] + responses[1][3:14]
+        serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
-      if response[0] != "8,9,12,13,16,1001,1003":
+      if topResponse and topResponse[0] != "8,9,12,13,16,1001,1003":
         ok = False
-        logInfo(", ".join([top_to_fs(x) + " (" + str(x) +")" for x in response[0].split(",")]))
+        logInfo(", ".join([top_to_fs(x) + " (" + str(x) +")" for x in topResponse[0].split(",")]))
         logError("Default pin state not as expected. Is the 3.3v regulator working?")
 
-      # Test the local pins for shorts.
+      if noFatal:
+        # Test the local pins for shorts.
+        time.sleep(0.1)
+        ok = cBoardTestInternalData(board) and ok
 
-      # Test the gyro.
+        # TODO(tannewt): Test the current and batt pins.
 
-      # Test the connections to the polystack connector.
-      if ok:
-        runCommand("cBoardCommsOn")
-        cBoardTestData()
+        # Test the gyro.
+        time.sleep(0.1)
+        ok = cBoardTestGyro() and ok
+
+        # Test the connections to the polystack connector.
+        time.sleep(0.1)
+        ok = cBoardTestData() and ok
         #time.sleep(4)
-        time.sleep(0.2)
+        time.sleep(0.1)
         #runCommand("cBoardCommand " + str(ECHO) + " ff 02 fe 03 fd 04 fc")
         #runCommand("cBoardCommand " + str(ECHO) + " ff 03 fe 03 fd 04 fc")
         #runCommand("cBoardCommand " + str(ECHO) + " ff 04 fe 03 fd 04 fc")
         runCommand("cBoardCommsOff")
 
       # Flash shipping firmware.
-      if ok:
-        logInfo("Flashing " + SHIPPING_BINARIES[board])
-        #subprocess.call(["st-flash", "write", SHIPPING_BINARIES[board], " 0x8000000"], stdout=subprocess.PIPE)
+      if ok and noFatal:
+        returncode = flash(SHIPPING_BINARIES[board])
+        if returncode != 0:
+          logError("Final flash failed. Not sure why.")
+          ok = False
+      else:
+        logInfo("Firmware flash skipped because board failed.")
 
     runCommand("powerOff")
 
-  if ok:
+  if ok and noFatal:
     runCommand("pass")
     print(fore.LIGHT_GREEN +
 """########     ###     ######   ######
@@ -552,6 +691,7 @@ while testing:
 
   testDuration = time.time() - startTime
   logInfo(str(testDuration) + " second duration")
+  print(str(testDuration) + " second test duration")
 
   testDeviceIdB64 = base64.urlsafe_b64encode(binascii.unhexlify(testDeviceId.replace(" ", "")))
 
@@ -562,7 +702,8 @@ while testing:
   boardInfo.update({"board_id": unicode(serial_number)})
   google_client.put(boardInfo)
 
-  key = google_client.key("TestRun", unicode(str(long(startTime)) + "/" + testDeviceIdB64), parent=parent_key)
+  key_name = unicode(str(long(startTime)) + "/" + testDeviceIdB64)
+  key = google_client.key("TestRun", key_name, parent=parent_key)
   runInfo = datastore.Entity(key=key, exclude_from_indexes=['log'])
   runInfo.update(
     {
@@ -575,6 +716,7 @@ while testing:
 
   google_client.put(runInfo)
   print("Cloud save took",time.time() - saveStartTime,"seconds.")
+  print(key_name)
 
   # getLog()
 

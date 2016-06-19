@@ -103,6 +103,10 @@ static GPIO_TypeDef* UART_RX_GPIOx = GPIOD;
 static uint16_t UART_RX_Pin = GPIO_PIN_9;
 static uint8_t UART_command_length = 8;
 
+// This pin resets the board under test and if given enough time will reset to bootloader.
+static GPIO_TypeDef* RESET_GPIOx = GPIOC;
+static uint16_t RESET_Pin = GPIO_PIN_7;
+
 #define U_ID_0 (*(uint32_t*)0x1FFFF7AC)
 #define U_ID_1 (*(uint32_t*)0x1FFFF7B0)
 #define U_ID_2 (*(uint32_t*)0x1FFFF7B4)
@@ -110,6 +114,9 @@ static uint8_t UART_command_length = 8;
 #define ECHO 0
 #define TEST_DATA 1
 #define CONTINUE 2
+#define TEST_INTERNAL_DATA 3
+#define READ_UNIQUE_ID 4
+#define TEST_GYRO 5
 
 #define MORE_DATA 0
 #define COMPLETELY_DONE 1
@@ -886,7 +893,10 @@ void cBoardCommand(char* line) {
     transmitBuffer + 7);
   HAL_StatusTypeDef status = HAL_UART_Transmit(&hUART, (unsigned char*) transmitBuffer, UART_command_length, 100);
 
-  cBoardReceive(nullptr, 0);
+  uint8_t receive = cBoardReceive(nullptr, 0);
+  while (receive != COMPLETELY_DONE) {
+    receive = cBoardReceive(nullptr, 0);
+  }
 }
 
 void testDeviceId(void) {
@@ -1002,6 +1012,12 @@ int main(void)
       } else if (strcmp(command, "readTop") == 0) {
         testTop(0, 63);
         printf("\n");
+      } else if (strcmp(command, "resetToBL") == 0) {
+        Output_High(RESET_GPIOx, RESET_Pin);
+        HAL_GPIO_WritePin(RESET_GPIOx, RESET_Pin, GPIO_PIN_RESET);
+        HAL_Delay(2000);
+        HAL_GPIO_WritePin(RESET_GPIOx, RESET_Pin, GPIO_PIN_SET);
+        Input_Z(RESET_GPIOx, RESET_Pin);
       }
       HAL_Delay(5);
       printf("%s done\n", command);
