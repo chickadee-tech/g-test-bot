@@ -5,8 +5,8 @@ mod_info {
   manufacturer_url: "chickadee.tech"
   mod_id: 0x6
   mod_name: "MicroSD"
-  mod_version: 1
-  mod_url: "ckd.tech/uSD-bb/v3"
+  mod_version: 4
+  mod_url: "ckd.tech/uSD/v4"
   connector_version: 3
 
   stacking_height: HEIGHT_3_5MM

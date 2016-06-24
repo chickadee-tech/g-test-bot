@@ -1,11 +1,12 @@
 proto_version: 1
 mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  mod_id: 0x6
-  mod_name: "MicroSD"
-  mod_version: 1
-  mod_url: "ckd.tech/uSD-bb/v1"
+  mod_id: 0x7
+  mod_name: "MicroMinimOSD Adapter"
+  mod_version: 4
+  mod_url: "ckd.tech/uOSD/v4"
   connector_version: 3
 
   stacking_height: HEIGHT_4MM
@@ -13,8 +14,8 @@ mod_info {
 }
 power_config {
   average_current_ma: 100
-  maximum_current_ma: 300
+  maximum_current_ma: 500
 }
-spi_config {
-  function: SDCARD
+serial_config {
+  function: MULTIWII_SERIAL_PROTOCOL
 }

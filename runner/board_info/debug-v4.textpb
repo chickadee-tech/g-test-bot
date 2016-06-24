@@ -1,12 +1,12 @@
 proto_version: 1
-expansion_info {
+mod_info {
   manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 0xa
-  expansion_name: "Debug"
-  expansion_version: 4
-  expansion_url: "ckd.tech/dbg/v4"
+  mod_id: 0xa
+  mod_name: "Debug"
+  mod_version: 4
+  mod_url: "ckd.tech/dbg/v4"
   connector_version: 3
 
   stacking_height: HEIGHT_2MM

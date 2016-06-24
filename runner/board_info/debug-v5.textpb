@@ -1,18 +1,22 @@
 proto_version: 1
 mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
   mod_id: 0xa
   mod_name: "Debug"
-  mod_version: 2
-  mod_url: "ckd.tech/dbg/v2"
-  connector_version: 2
+  mod_version: 5
+  mod_url: "ckd.tech/dbg/v5"
+  connector_version: 3
 
   stacking_height: HEIGHT_2MM
   total_height: 3.46
 }
 gpio_config {
   function: SWD_SDIO
+}
+gpio_config {
+  function: SWD_SCL
 }
 power_config {
   average_current_ma: 2

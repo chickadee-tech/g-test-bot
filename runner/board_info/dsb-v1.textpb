@@ -1,11 +1,11 @@
 proto_version: 1
-expansion_info {
+mod_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 0x8
-  expansion_name: "Dual Serial Breakout"
-  expansion_version: 1
-  expansion_url: "ckd.tech/dsb/v1"
+  mod_id: 0x8
+  mod_name: "Dual Serial Breakout"
+  mod_version: 1
+  mod_url: "ckd.tech/dsb/v1"
   connector_version: 3
 
   stacking_height: HEIGHT_1_5MM

@@ -8,13 +8,14 @@ import math
 import os
 import os.path
 import serial
+import serial.tools.list_ports
 import struct
 import sys
 import time
 
 from gcloud import datastore
 
-import flightstack_pb2
+import polystack_pb2
 from google.protobuf import text_format
 from google.protobuf.internal import encoder
 
@@ -198,23 +199,25 @@ TOP_IGNORE = ["i2c_SDA", "i2c_SCL", "HEIGHT_2", "HEIGHT_1", "3V3_0.3A_LL", "5V"]
 BROKEN_PINS = ["UART5_TX"]
 
 EXPECTED_INTERNAL_HIGH = {"F3FC": ["PA12", "PC13", "PC14", "PC15"], "F4FC": ["PC13", "PC14", "PC15"]}
+# TODO(tannewt): Add in 8 and 9 to the expected for the F4FC because they are i2c and should read high.
+DEFAULT_TOP_STATE = {"F3FC": "8,9,12,13,16,1001,1003", "F4FC": "12,13,16,1001,1003"}
 
 GYRO_TEST_EXPECTED_09 = [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 21]
 
 ACTIVE_LOG = []
 def logWarning(msg):
   msg = msg.replace("\n", "\nW: ")
-  print("W: " + msg)
+  #print("W: " + msg)
   ACTIVE_LOG.append("W: " + msg)
 
 def logError(msg):
   msg = msg.replace("\n", "\nE: ")
-  print("E: " + msg)
+  #print("E: " + msg)
   ACTIVE_LOG.append("E: " + msg)
 
 def logInfo(msg):
   msg = msg.replace("\n", "\nI: ")
-  print("I: " + msg)
+  #print("I: " + msg)
   ACTIVE_LOG.append("I: " + msg)
 
 def clearLog():
@@ -228,6 +231,8 @@ def addresses_to_pin(board, addresses):
   if not addresses:
     return ""
   port, pin = addresses.split("_")
+  if board not in PORT:
+    board = "F3FC"
   return PORT[board][port] + str(int(math.log(int("0x"+pin, 0), 2)))
 
 def top_to_fs(top):
@@ -240,8 +245,14 @@ def pin_to_fs(pin):
     return PIN_TO_FS[pin]
   return pin
 
-ser = serial.Serial(sys.argv[1], 115200, timeout=5)
-print(ser.name)
+print("Available COM ports:")
+comports = serial.tools.list_ports.comports()
+for i, port in enumerate(comports):
+  print(str(i) + ":", port.device, port.description)
+index = raw_input("Enter the number next to the desired COM port: ")
+print()
+ser = serial.Serial(comports[int(index)].device, 115200, timeout=5)
+print("Connected to:", ser.name)
 
 def runCommand(command):
   logInfo(command)
@@ -424,7 +435,7 @@ def cBoardTestData(board):
       else:
         spare_bytes.extend(b[1:])
         while len(spare_bytes) >= 6:
-          high_pins.append(board, addresses_to_pin("0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
+          high_pins.append(addresses_to_pin(board, "0x" + "".join(spare_bytes[:4]) + "_" + "".join(spare_bytes[4:4+2])))
           spare_bytes = spare_bytes[6:]
       if b[0] == "00":
         first_line = False
@@ -439,6 +450,7 @@ def cBoardTestData(board):
         logError(pin + " isn't connect to the top: " + response)
         ok = False
       spare_bytes = []
+      high_pins = []
       first_line = True
 
   logInfo("")
@@ -537,21 +549,38 @@ def flash(filename):
   logInfo("Return code: " + str(returncode))
   return returncode
 
-board = sys.argv[2]
+all_boards = []
+board_filenames = os.listdir("board_info")
+for i, board in enumerate(board_filenames):
+  if i < len(board_filenames) - 1 and board.split("-v")[0] == board_filenames[i+1].split("-v")[0]:
+    continue
+  board_info_fn = os.path.join("board_info", board)
+  #print(board_info_fn)
+  board_info = polystack_pb2.PolystackMod()
+  if os.path.isfile(board_info_fn):
+    with open(board_info_fn) as f:
+      text_format.Merge(f.read(), board_info)
+  all_boards.append(board_info)
 
-# Load the proto info if possible. If not, then its a FC or typo.
-board_info_fn = sys.argv[2]
-board_info = flightstack_pb2.FlightStackExpansion()
-if os.path.isfile(board_info_fn):
-  with open(board_info_fn) as f:
-    text_format.Merge(f.read(), board_info)
+for i, board in enumerate(all_boards):
+  print(str(i) + ":", board.mod_info.mod_url)
+index = raw_input("Enter the number next to the URL that matches the URL on the boards to test: ")
+board_info = all_boards[int(index)]
+board = board_info.mod_info.mod_name
 
-if board not in ["F3FC", "F4FC"] and board_info.expansion_info.manufacturer_id == 0:
+if board not in ["F3FC", "F4FC"] and board_info.mod_info.manufacturer_id == 0:
   print("manufacturer_id must not be zero for manufactured boards.")
   sys.exit(-1)
 
+print()
+print("Set up to test", board_info.mod_info.mod_name, "version", board_info.mod_info.mod_version, "with url", board_info.mod_info.mod_url)
+
 build_info = runCommand("testBuildInfo")[-1]
 print("Test jig build:", build_info)
+
+if "dirty" in build_info and "--test" not in sys.argv:
+  print("Test jig contains experimental code. Please contact scott@chickadee.tech for instructions on how to update it to production code. Thanks!")
+  sys.exit(-1)
 
 testDeviceId = runCommand("testDeviceId")[-1]
 print("Test device id:", testDeviceId)
@@ -562,19 +591,20 @@ google_client = datastore.Client("chickadee-tech-board-history")
 testing = True
 while testing:
   print()
-  print("Press GO to test next board.")
+  print("Press GO to test next board. (Ctrl-C to exit.)")
   runCommand("waitForButton")
   print("Testing in progress")
 
   clearLog()
   ok = True
+  noFatal = True
 
   startTime = time.time()
   serial_number = "unknown"
   runCommand("noled")
 
   if board not in ["F3FC", "F4FC"]:
-    ok = testDataPins(board_info) and ok
+    ok = testDataPins(board, board_info) and ok
 
   powerOk = runTest("powerOn", "powerFaultPostcheckOK", "Failed to turn on power.")
   ok = ok and powerOk
@@ -591,22 +621,25 @@ while testing:
       ok = runTest("i2cReady " + str(MEMORY_ADDRESS), "ok", "Memory address not ready. I2C lines probably hosed.") and ok
 
       serial_number = i2cRead(SERIAL_ADDRESS, SERIAL_PAGE, 16)
-      serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
+      if serial_number not in ["error", "timeout", "busy"]:
+        serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
-      # Set manufacturing info into the board info.
-      for part in map(binascii.unhexlify, testDeviceId.split()):
-        board_info.manufacturing_info.test_device_id.append(struct.unpack("<L", part)[0])
-      board_info.manufacturing_info.test_time = long(startTime)
-      serialized_board_info = board_info.SerializeToString()
-      delimiter = encoder._VarintBytes(len(serialized_board_info))
+        # Set manufacturing info into the board info.
+        for part in map(binascii.unhexlify, testDeviceId.split()):
+          board_info.manufacturing_info.test_device_id.append(struct.unpack("<L", part)[0])
+        board_info.manufacturing_info.test_time = long(startTime)
+        serialized_board_info = board_info.SerializeToString()
+        delimiter = encoder._VarintBytes(len(serialized_board_info))
 
-      ok = i2cWrite(MEMORY_ADDRESS + 1, MEMORY_PAGE, delimiter + serialized_board_info) and ok
+        ok = i2cWrite(MEMORY_ADDRESS + 1, MEMORY_PAGE, delimiter + serialized_board_info) and ok
+      else:
+        logError("Unable to read EEPROM serial number!")
+        ok = False
 
       runCommand("i2cOff")
 
       runCommand("heightOff")
     else:
-      noFatal = True
       # Wait for bootup.
       time.sleep(0.5)
       testBin = "builds/" + board + "/test.bin"
@@ -644,10 +677,11 @@ while testing:
           ok = False
           noFatal = False
           logError("No serial number response from board under test.")
+        print(responses)
         serial_number = responses[0][3:] + responses[1][3:14]
         serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
-      if topResponse and topResponse[0] != "12,13,16,1001,1003":
+      if topResponse and topResponse[0] != DEFAULT_TOP_STATE[board]:
         ok = False
         logInfo(", ".join([top_to_fs(x) + " (" + str(x) +")" for x in topResponse[0].split(",")]))
         logError("Default pin state not as expected. Is the 3.3v regulator working?")

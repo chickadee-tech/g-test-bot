@@ -1,0 +1,10 @@
+proto_version: 1
+mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
+  manufacturer_name: "Chickadee Tech"
+  manufacturer_url: "chickadee.tech"
+  mod_name: "F4FC"
+  mod_version: 5
+  mod_url: "ckd.tech/f4fc/v5"
+  connector_version: 3
+}

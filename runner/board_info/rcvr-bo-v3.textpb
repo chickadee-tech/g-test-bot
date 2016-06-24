@@ -1,12 +1,16 @@
 proto_version: 1
 mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
   mod_id: 0x5
   mod_name: "Receiver Breakout"
-  mod_version: 2
-  mod_url: "ckd.tech/rcvr-bo/v2"
+  mod_version: 3
+  mod_url: "ckd.tech/rcvr-bo/v3"
   connector_version: 3
+
+  stacking_height: HEIGHT_2MM
+  total_height: 3.146
 }
 single_timer_config {
   input: PPM
@@ -28,4 +32,10 @@ serial_config {
 serial_config {
   function: TELEMETRY
   telemetry_protocol: TELEMETRY_USER_CONFIGURED
+}
+timer_group_config {
+  function: PWM_INPUT
+}
+timer_group_config {
+  function: PWM_INPUT
 }

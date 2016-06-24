@@ -38,12 +38,8 @@
 #include <utility>
 
 #include "stm32f3xx_hal.h"
-#include "usb_device.h"
-
-#include "newlib_stubs.h"
 
 /* USER CODE BEGIN Includes */
-#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/

@@ -1,11 +1,11 @@
 proto_version: 1
-expansion_info {
+mod_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 0x6
-  expansion_name: "MicroSD"
-  expansion_version: 1
-  expansion_url: "ckd.tech/uSD-bb/v2"
+  mod_id: 0x6
+  mod_name: "MicroSD"
+  mod_version: 1
+  mod_url: "ckd.tech/uSD-bb/v2"
   connector_version: 3
 
   stacking_height: HEIGHT_3_5MM

@@ -1,11 +1,12 @@
 proto_version: 1
 mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
   mod_id: 0x3
   mod_name: "X4R-SB Cradle"
-  mod_version: 3
-  mod_url: "ckd.tech/x4r-sb/v3"
+  mod_version: 5
+  mod_url: "ckd.tech/x4r-sb/v5"
   connector_version: 3
 }
 gpio_config {
@@ -20,7 +21,7 @@ power_config {
 }
 serial_config {
   function: REMOTE_CONTROL
-  rc_protocol: SBUS
+  remote_control_protocol: SBUS
 }
 serial_config {
   function: TELEMETRY

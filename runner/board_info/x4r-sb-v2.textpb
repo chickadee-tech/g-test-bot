@@ -1,11 +1,11 @@
 proto_version: 1
-expansion_info {
+mod_info {
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  expansion_id: 0x3
-  expansion_name: "X4R-SB Cradle"
-  expansion_version: 2
-  expansion_url: "ckd.tech/x4r-sb/v2"
+  mod_id: 0x3
+  mod_name: "X4R-SB Cradle"
+  mod_version: 2
+  mod_url: "ckd.tech/x4r-sb/v2"
   connector_version: 3
 }
 gpio_config {
@@ -19,7 +19,7 @@ power_config {
   reads_batt_div: true
 }
 serial_config {
-  function: RC
+  function: REMOTE_CONTROL
   rc_protocol: SBUS
 }
 serial_config {

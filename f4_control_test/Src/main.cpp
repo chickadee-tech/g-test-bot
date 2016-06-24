@@ -103,7 +103,9 @@ const std::vector<std::tuple<GPIO_TypeDef*, uint16_t, uint16_t>> dataPins = {
   std::make_tuple(GPIOE, GPIO_PIN_3, 5), // GPIO4
   std::make_tuple(GPIOE, GPIO_PIN_2, 6), // GPIO5
   std::make_tuple(GPIOB, GPIO_PIN_8, 7), // GPIO6
-  //{GPIOA, GPIO_PIN_10), // i2c lines that are pulled high by default.
+  // std::make_tuple(GPIOB, GPIO_PIN_7, 8), // GPIO5// i2c lines that are pulled high by default.
+  // std::make_tuple(GPIOB, GPIO_PIN_6, 9), // GPIO6
+  //{GPIOA, GPIO_PIN_10),
   //{GPIOA, GPIO_PIN_9}
   // HEIGHT_4
   // HEIGHT_2

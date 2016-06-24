@@ -9,9 +9,6 @@
 #include <sys/times.h>
 #include <sys/unistd.h>
 
-#include "../Middlewares//ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h"
-#include "usbd_cdc_if.h"
-
 #undef errno
 extern int errno;
 
@@ -155,33 +152,8 @@ caddr_t _sbrk(int incr) {
 
 
 int _read(int file, char *outputBuffer, int len) {
-  int charsRead = 0;
-  uint16_t i;
-  switch (file) {
-    case STDIN_FILENO:
-      // Block until we get some data.
-      while (scanBufferDataStart == scanBufferDataEnd) {
-        HAL_Delay(20);
-      }
-      for (i = 0; i < len; i++) {
-        outputBuffer[i] = *scanBufferDataStart;
-        charsRead++;
-        if (scanBufferDataStart == scanBufferEnd) {
-          scanBufferDataStart = scanBuffer;
-        } else {
-          scanBufferDataStart++;
-        }
-        //printf("debug %d '%c' %p %p %p\n", charsRead, outputBuffer[i], scanBufferDataStart, scanBufferDataEnd, scanBufferEnd);
-        if (scanBufferDataStart == scanBufferDataEnd) {
-          break;
-        }
-      }
-      break;
-    default:
-      errno = EBADF;
-      return -1;
-  }
-  return charsRead;
+  errno = EBADF;
+  return -1;
 }
 
 /*
@@ -228,23 +200,6 @@ int _wait(int *status) {
  Returns -1 on error or number of bytes sent
  */
 int _write(int file, char *ptr, int len) {
-    int n;
-    switch (file) {
-    case STDOUT_FILENO: /*stdout*/
-        if (CDC_Transmit_FS((uint8_t *) ptr, len) != USBD_OK) {
-          return -1;
-        }
-        break;
-    case STDERR_FILENO: /* stderr */
-        for (n = 0; n < len; n++) {
-// #if STDERR_USART == 1
-//             while ((USART1->SR & USART_FLAG_TC) == (uint16_t)RESET) {}
-//             USART1->DR = (*ptr++ & (uint16_t)0x01FF);
-        }
-        break;
-    default:
-        errno = EBADF;
-        return -1;
-    }
-    return len;
+  errno = EBADF;
+  return -1;
 }

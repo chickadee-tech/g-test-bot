@@ -45,14 +45,6 @@ C_SOURCES = \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_spi_ex.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_uart.c \
   Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_uart_ex.c \
-	Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c \
-	Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c \
-	Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
-	Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c \
-	Src/usb_device.c \
-	Src/usbd_conf.c \
-	Src/usbd_desc.c \
-	Src/usbd_cdc_if.c \
   Src/stm32f3xx_hal_msp.c \
   Src/stm32f3xx_it.c \
 	Src/newlib_stubs.c
@@ -84,8 +76,6 @@ AS_INCLUDES =
 C_INCLUDES = -IInc
 C_INCLUDES += -IDrivers/STM32F3xx_HAL_Driver/Inc
 C_INCLUDES += -IDrivers/STM32F3xx_HAL_Driver/Inc/Legacy
-C_INCLUDES += -IMiddlewares/ST/STM32_USB_Device_Library/Core/Inc
-C_INCLUDES += -IMiddlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc
 C_INCLUDES += -IDrivers/CMSIS/Include
 C_INCLUDES += -IDrivers/CMSIS/Device/ST/STM32F3xx/Include
 # compile gcc flags

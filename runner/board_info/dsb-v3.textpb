@@ -1,11 +1,12 @@
 proto_version: 1
 mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
   mod_id: 0x8
   mod_name: "Dual Serial Breakout"
-  mod_version: 2
-  mod_url: "ckd.tech/dsb/v2"
+  mod_version: 3
+  mod_url: "ckd.tech/dsb/v3"
   connector_version: 3
 
   stacking_height: HEIGHT_2MM
@@ -13,6 +14,8 @@ mod_info {
 }
 power_config {
   current_unknown: true
+
+  uses_3v3_ll_for_logic_level_shifting: true
 }
 serial_config {
   function: USER_CONFIGURED

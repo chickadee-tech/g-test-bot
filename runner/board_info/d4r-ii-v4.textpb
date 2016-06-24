@@ -1,12 +1,19 @@
 proto_version: 1
 mod_info {
+  manufacturer_id: MANUFACTURER_CHICKADEE_TECH
   manufacturer_name: "Chickadee Tech"
   manufacturer_url: "chickadee.tech"
-  mod_id: 0x3
-  mod_name: "X4R-SB Cradle"
-  mod_version: 3
-  mod_url: "ckd.tech/x4r-sb/v3"
+  mod_id: 0x4
+  mod_name: "D4R-II Cradle"
+  mod_version: 4
+  mod_url: "ckd.tech/d4r-ii/v4"
   connector_version: 3
+
+  stacking_height: HEIGHT_4MM
+  total_height: 5.46
+}
+single_timer_config {
+  input: PPM
 }
 gpio_config {
   function: BUZZER
@@ -15,14 +22,9 @@ power_config {
   average_current_ma: 60
   maximum_current_ma: 80
 
-  uses_3v3_ll_for_logic_level_shifting: true
   reads_batt_div: true
 }
 serial_config {
-  function: REMOTE_CONTROL
-  rc_protocol: SBUS
-}
-serial_config {
   function: TELEMETRY
-  telemetry_protocol: SMARTPORT
+  telemetry_protocol: FRSKY
 }
