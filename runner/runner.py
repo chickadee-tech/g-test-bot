@@ -2,7 +2,8 @@ from __future__ import print_function
 
 import base64
 import binascii
-from colored import fore, style
+import colorama
+from colorama import Fore as fore, Style as style
 import datetime
 import math
 import os
@@ -13,6 +14,11 @@ import struct
 import sys
 import time
 
+# Init colorama so it adapts the output for Windows.
+colorama.init()
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "Chickadee-tech-Board History-2c3e589ba27e.json"
+
 from gcloud import datastore
 
 import polystack_pb2
@@ -20,6 +26,8 @@ from google.protobuf import text_format
 from google.protobuf.internal import encoder
 
 import subprocess
+
+import platform
 
 # i2c addresses for the EEPROM
 MEMORY_ADDRESS = 0b10100000
@@ -29,7 +37,11 @@ SERIAL_PAGE = 0b0000100000000000
 MEMORY_PAGE = 0b0000000000000000
 
 SHIPPING_BINARIES = {"F3FC": "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin",
-               "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
+                     "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
+
+DIRTY_WHITELIST = ["e0c8c31-dirty Fri Jun 24 20:34:03 PDT 2016"]
+
+PRINT_LOG = False
 
 PORT = {"F3FC": {"0x48000000": "PA",
             "0x48000400": "PB",
@@ -46,6 +58,7 @@ PORT = {"F3FC": {"0x48000000": "PA",
             "0x40021800": "PG",
             "0x40021c00": "PH"}}
 
+# Constants for talking with the code on the test control board.
 ECHO = 0
 TEST_DATA = 1
 CONTINUE = 2
@@ -196,7 +209,7 @@ PIN_TO_FS = {
 
 TOP_IGNORE = ["i2c_SDA", "i2c_SCL", "HEIGHT_2", "HEIGHT_1", "3V3_0.3A_LL", "5V"]
 
-BROKEN_PINS = ["UART5_TX"]
+BROKEN_PINS = {"ABoAJ0YzVxEgOTEy": ["UART5_TX"]}
 
 EXPECTED_INTERNAL_HIGH = {"F3FC": ["PA12", "PC13", "PC14", "PC15"], "F4FC": ["PC13", "PC14", "PC15"]}
 # TODO(tannewt): Add in 8 and 9 to the expected for the F4FC because they are i2c and should read high.
@@ -204,20 +217,31 @@ DEFAULT_TOP_STATE = {"F3FC": "8,9,12,13,16,1001,1003", "F4FC": "12,13,16,1001,10
 
 GYRO_TEST_EXPECTED_09 = [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 21]
 
+def fatalError(message):
+  print(message)
+  if platform.system() == "Windows":
+    print("CTRL-C to close window.")
+    while True:
+      pass
+  sys.exit(1)
+
 ACTIVE_LOG = []
 def logWarning(msg):
   msg = msg.replace("\n", "\nW: ")
-  #print("W: " + msg)
+  if PRINT_LOG:
+    print("W: " + msg)
   ACTIVE_LOG.append("W: " + msg)
 
 def logError(msg):
   msg = msg.replace("\n", "\nE: ")
-  #print("E: " + msg)
+  if PRINT_LOG:
+    print("E: " + msg)
   ACTIVE_LOG.append("E: " + msg)
 
 def logInfo(msg):
   msg = msg.replace("\n", "\nI: ")
-  #print("I: " + msg)
+  if PRINT_LOG:
+    print("I: " + msg)
   ACTIVE_LOG.append("I: " + msg)
 
 def clearLog():
@@ -247,11 +271,15 @@ def pin_to_fs(pin):
 
 print("Available COM ports:")
 comports = serial.tools.list_ports.comports()
+if len(comports) == 0:
+  fatalError("No COM ports found! Is the jig plugged in?")
+
 for i, port in enumerate(comports):
   print(str(i) + ":", port.device, port.description)
 index = raw_input("Enter the number next to the desired COM port: ")
 print()
-ser = serial.Serial(comports[int(index)].device, 115200, timeout=5)
+test_device_com_device = comports[int(index)].device
+ser = serial.Serial(test_device_com_device, 115200, timeout=5)
 print("Connected to:", ser.name)
 
 def runCommand(command):
@@ -340,10 +368,9 @@ PORT_NAME_TO_ATTR = {"TIM": "single_timer_config",
                "TIMG": "timer_group_config",
                "ADC": "adc_config",
                "SPI": "spi_config"}
-def dataPinOk(board_info, pin_name, shorts, top):
-  if pin_name in BROKEN_PINS:
+def dataPinOk(test_jig_id, board_info, pin_name, shorts, top):
+  if test_jig_id in BROKEN_PINS and pin_name in BROKEN_PINS[test_jig_id]:
     logWarning("Skipping test of " + pin_name + " pin.")
-    # TODO(tannewt): Do this on per jig basis.
     return True
 
   if (pin_name in ["HEIGHT_1", "HEIGHT_2", "HEIGHT_4"] and not shorts and not top):
@@ -377,7 +404,7 @@ def dataPinOk(board_info, pin_name, shorts, top):
     return False
   return True
 
-def testDataPins(board, board_info):
+def testDataPins(test_jig_id, board, board_info):
   logInfo("testData")
   ser.write(b'testData\n')
   response = None
@@ -405,7 +432,7 @@ def testDataPins(board, board_info):
     top = [x for x in top if x not in TOP_IGNORE]
     pin_name = pin_to_fs(addresses_to_pin(board, pin))
     shorts = map(pin_to_fs, map(lambda x: addresses_to_pin(board, x), shorts))
-    ok = dataPinOk(board_info, pin_name, shorts, top) and ok
+    ok = dataPinOk(test_jig_id, board_info, pin_name, shorts, top) and ok
   logInfo("")
   return ok
 
@@ -541,7 +568,11 @@ def cBoardTestGyro():
 
 def flash(filename):
   logInfo("Flashing " + filename)
-  p = subprocess.Popen(["st-flash", "write", filename, " 0x8000000"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  st_flash = ["st-flash", "write", filename, " 0x8000000"]
+  if platform.system() == "Windows":
+    st_flash = ["C:\Program Files (x86)\STMicroelectronics\STM32 ST-LINK Utility\ST-LINK Utility\ST-LINK_CLI.exe", "-c", "SWD", "UR", "LPM", "-Q", "-ME", "-P", filename, " 0x8000000", "-V" , "after_programming", "-HardRst"]
+
+  p = subprocess.Popen(st_flash, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   out, err = p.communicate()
   logInfo(out)
   logError(err)
@@ -578,12 +609,12 @@ print("Set up to test", board_info.mod_info.mod_name, "version", board_info.mod_
 build_info = runCommand("testBuildInfo")[-1]
 print("Test jig build:", build_info)
 
-if "dirty" in build_info and "--test" not in sys.argv:
-  print("Test jig contains experimental code. Please contact scott@chickadee.tech for instructions on how to update it to production code. Thanks!")
-  sys.exit(-1)
+if build_info not in DIRTY_WHITELIST and "dirty" in build_info and "--test" not in sys.argv:
+  fatalError("Test jig contains experimental code(" + build_info + "). Please contact scott@chickadee.tech for instructions on how to update it to production code. Thanks!")
 
 testDeviceId = runCommand("testDeviceId")[-1]
-print("Test device id:", testDeviceId)
+testDeviceIdB64 = base64.urlsafe_b64encode(binascii.unhexlify(testDeviceId.replace(" ", "")))
+print("Test device id:", testDeviceIdB64)
 
 
 google_client = datastore.Client("chickadee-tech-board-history")
@@ -604,7 +635,7 @@ while testing:
   runCommand("noled")
 
   if board not in ["F3FC", "F4FC"]:
-    ok = testDataPins(board, board_info) and ok
+    ok = testDataPins(testDeviceIdB64, board, board_info) and ok
 
   powerOk = runTest("powerOn", "powerFaultPostcheckOK", "Failed to turn on power.")
   ok = ok and powerOk
@@ -655,7 +686,7 @@ while testing:
       # Cold restart
       runCommand("powerOff")
 
-      time.sleep(1)
+      time.sleep(0.5)
 
       topResponse = None
       if noFatal:
@@ -677,7 +708,7 @@ while testing:
           ok = False
           noFatal = False
           logError("No serial number response from board under test.")
-        print(responses)
+
         serial_number = responses[0][3:] + responses[1][3:14]
         serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
@@ -716,35 +747,82 @@ while testing:
       else:
         logInfo("Firmware flash skipped because board failed.")
 
+      if True or ok and noFatal:
+        runCommand("powerOff")
+        print("Please remove the control board from the jig and plug it into the computer directly.")
+        controlDevice = None
+        for tryNum in xrange(180):
+          comports = serial.tools.list_ports.comports()
+          if len(comports) > 1:
+            for comport in comports:
+              if comport.device == test_device_com_device:
+                continue
+              if comport.pid == 22336 and comport.vid == 1155:
+                controlDevice = comport.device
+                break
+          if controlDevice:
+            break
+          time.sleep(0.1)
+
+        # Validate that MSP CLI works and record the version info.
+        if controlDevice:
+          time.sleep(0.1)
+          s = serial.Serial(controlDevice, 115200, timeout=5)
+          s.write("#")
+          if s.readline() != "\r\n":
+            logError("Invalid response after #")
+            ok = False
+          elif not s.readline().startswith("Entering"):
+            logError("Failed to enter CLI")
+            ok = False
+          elif s.readline() != "\r\n":
+            logError("No newline after entering")
+            ok = False
+          elif s.read(2) != "# ":
+              logError("No prompt")
+              ok = False
+          s.write("version\r\n")
+          if s.readline() != "version\r\n":
+            logError("version not echoed")
+            ok = False
+          else:
+            versionString = s.readline()
+            logInfo(versionString)
+            if "BetaFlight/CKD" not in versionString:
+              logError("Flashed incorrect firmware")
+              ok = False
+          s.close()
+        else:
+          logError("Unable to find control board when connected directly to the computer.")
+          ok = False
+
     runCommand("powerOff")
 
   if ok and noFatal:
     runCommand("pass")
-    print(fore.LIGHT_GREEN +
+    print(fore.GREEN +
 """########     ###     ######   ######
 ##     ##   ## ##   ##    ## ##    ##
 ##     ##  ##   ##  ##       ##
 ########  ##     ##  ######   ######
 ##        #########       ##       ##
 ##        ##     ## ##    ## ##    ##
-##        ##     ##  ######   ######  """ + style.RESET)
+##        ##     ##  ######   ######  """ + style.RESET_ALL)
   else:
     runCommand("fail")
-    print(fore.LIGHT_RED + """########    ###    #### ##
+    print(fore.RED + """########    ###    #### ##
 ##         ## ##    ##  ##
 ##        ##   ##   ##  ##
 ######   ##     ##  ##  ##
 ##       #########  ##  ##
 ##       ##     ##  ##  ##
-##       ##     ## #### ######## """ + style.RESET)
+##       ##     ## #### ######## """ + style.RESET_ALL)
   print()
 
 
   testDuration = time.time() - startTime
   logInfo(str(testDuration) + " second duration")
   print(str(testDuration) + " second test duration")
-
-  testDeviceIdB64 = base64.urlsafe_b64encode(binascii.unhexlify(testDeviceId.replace(" ", "")))
 
   print("Saving test results to cloud.")
   saveStartTime = time.time()
@@ -762,7 +840,7 @@ while testing:
      "test_time": datetime.datetime.fromtimestamp(startTime),
      "test_duration_sec": testDuration,
      "test_jig_build_info": unicode(build_info),
-     "pass": ok,
+     "pass": ok and noFatal,
      "board_name": unicode(board),
      "log": unicode("\n".join(getLog()))})
 
