@@ -1043,7 +1043,11 @@ void Input_Z(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin) {
   GPIO_InitTypeDef GPIO_InitStruct;
   GPIO_InitStruct.Pin = GPIO_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  if (GPIOx != RESET_GPIOx || GPIO_Pin != RESET_Pin) {
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  } else {
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+  }
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = 0;
   HAL_GPIO_Init(GPIOx, &GPIO_InitStruct);
