@@ -36,8 +36,8 @@ SERIAL_ADDRESS = 0b10110000
 SERIAL_PAGE = 0b0000100000000000
 MEMORY_PAGE = 0b0000000000000000
 
-SHIPPING_BINARIES = {"F3FC": "builds/F3FC/betaflight_2.6.1_CKD_F3FC.bin",
-                     "F4FC": "builds/F4FC/raceflight_083e695_CKD_F4FC.bin"}
+SHIPPING_BINARIES = {"F3FC": "builds/betaflight_batch1_CKD_F3FC_V9.bin",
+               "F4FC": "builds/betaflight_batch1_CKD_F4FC_V5.bin"}
 
 DIRTY_WHITELIST = ["e0c8c31-dirty Fri Jun 24 20:34:03 PDT 2016"]
 
