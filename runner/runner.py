@@ -39,7 +39,7 @@ MEMORY_PAGE = 0b0000000000000000
 SHIPPING_BINARIES = {"F3FC": "builds/betaflight_batch1_CKD_F3FC_V9.bin",
                "F4FC": "builds/betaflight_batch1_CKD_F4FC_V5.bin"}
 
-DIRTY_WHITELIST = ["e0c8c31-dirty Fri Jun 24 20:34:03 PDT 2016"]
+DIRTY_WHITELIST = ["a6652e2-dirty Wed Jun 29 14:05:13 CDT 2016"]
 
 PRINT_LOG = False
 
@@ -213,7 +213,7 @@ BROKEN_PINS = {"ABoAJ0YzVxEgOTEy": ["UART5_TX"]}
 
 EXPECTED_INTERNAL_HIGH = {"F3FC": ["PA12", "PC13", "PC14", "PC15"], "F4FC": ["PC13", "PC14", "PC15"]}
 # TODO(tannewt): Add in 8 and 9 to the expected for the F4FC because they are i2c and should read high.
-DEFAULT_TOP_STATE = {"F3FC": "8,9,12,13,16,1001,1003", "F4FC": "12,13,16,1001,1003"}
+DEFAULT_TOP_STATE = {"F3FC": "8,9,12,13,16,1001,1003", "F4FC": "8,9,12,13,16,1001,1003"}
 
 GYRO_TEST_EXPECTED_09 = [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 21]
 
@@ -368,14 +368,15 @@ PORT_NAME_TO_ATTR = {"TIM": "single_timer_config",
                "TIMG": "timer_group_config",
                "ADC": "adc_config",
                "SPI": "spi_config"}
-def dataPinOk(test_jig_id, board_info, pin_name, shorts, top):
+def dataPinOk(test_jig_id, board_name, board_info, pin_name, shorts, top):
   if test_jig_id in BROKEN_PINS and pin_name in BROKEN_PINS[test_jig_id]:
     logWarning("Skipping test of " + pin_name + " pin.")
     return True
 
   if (pin_name in ["HEIGHT_1", "HEIGHT_2", "HEIGHT_4"] and not shorts and not top):
     return True
-  if len(shorts) > 0 and not pin_name.startswith("UART"):
+
+  if len(shorts) > 0 and not pin_name.startswith(("TIM", "GPIO", "UART", "TIMG", "ADC", "SPI")):
     logError(pin_name + " is shorted to " + str(shorts))
     return False
   if pin_name.startswith(("TIM", "GPIO", "UART", "TIMG", "ADC", "SPI")):
@@ -391,6 +392,8 @@ def dataPinOk(test_jig_id, board_info, pin_name, shorts, top):
       return True
     output_name = prefix + str(input_index - shift) + suffix
 
+    if board_name == "Receiver Breakout" and pin_name == "TIM1" and shorts == ["UART2_TX", "UART1_TX", "UART1_RX", "TIMG1_CH1", "TIMG2_CH2", "TIMG1_CH3", "TIMG1_CH4", "TIMG2_CH1", "TIMG2_CH2"]:
+      return True
     if ((output_name == "UART1_TX" and shorts == ["SPI2_NSS"] and not top) or
        (output_name == "UART1_RX" and shorts == ["SPI2_SCK"] and not top)):
       return True
@@ -432,7 +435,7 @@ def testDataPins(test_jig_id, board, board_info):
     top = [x for x in top if x not in TOP_IGNORE]
     pin_name = pin_to_fs(addresses_to_pin(board, pin))
     shorts = map(pin_to_fs, map(lambda x: addresses_to_pin(board, x), shorts))
-    ok = dataPinOk(test_jig_id, board_info, pin_name, shorts, top) and ok
+    ok = dataPinOk(test_jig_id, board, board_info, pin_name, shorts, top) and ok
   logInfo("")
   return ok
 
@@ -570,12 +573,13 @@ def flash(filename):
   logInfo("Flashing " + filename)
   st_flash = ["st-flash", "write", filename, " 0x8000000"]
   if platform.system() == "Windows":
-    st_flash = ["C:\Program Files (x86)\STMicroelectronics\STM32 ST-LINK Utility\ST-LINK Utility\ST-LINK_CLI.exe", "-c", "SWD", "UR", "LPM", "-Q", "-ME", "-P", filename, " 0x8000000", "-V" , "after_programming", "-HardRst"]
+    st_flash = ["ST-LINK_CLI.exe", "-c", "SWD", "UR", "LPM", "-Q", "-ME", "-P", filename, " 0x8000000", "-V" , "after_programming", "-HardRst"]
 
   p = subprocess.Popen(st_flash, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   out, err = p.communicate()
   logInfo(out)
-  logError(err)
+  if err:
+    logError(err)
   returncode = p.poll()
   logInfo("Return code: " + str(returncode))
   return returncode
@@ -616,6 +620,8 @@ testDeviceId = runCommand("testDeviceId")[-1]
 testDeviceIdB64 = base64.urlsafe_b64encode(binascii.unhexlify(testDeviceId.replace(" ", "")))
 print("Test device id:", testDeviceIdB64)
 
+for part in map(binascii.unhexlify, testDeviceId.split()):
+  board_info.manufacturing_info.test_device_id.append(struct.unpack("<L", part)[0])
 
 google_client = datastore.Client("chickadee-tech-board-history")
 
@@ -656,8 +662,6 @@ while testing:
         serial_number = base64.urlsafe_b64encode(binascii.unhexlify(serial_number.replace(" ", ""))).strip("=")
 
         # Set manufacturing info into the board info.
-        for part in map(binascii.unhexlify, testDeviceId.split()):
-          board_info.manufacturing_info.test_device_id.append(struct.unpack("<L", part)[0])
         board_info.manufacturing_info.test_time = long(startTime)
         serialized_board_info = board_info.SerializeToString()
         delimiter = encoder._VarintBytes(len(serialized_board_info))
@@ -747,7 +751,7 @@ while testing:
       else:
         logInfo("Firmware flash skipped because board failed.")
 
-      if True or ok and noFatal:
+      if ok and noFatal:
         runCommand("powerOff")
         print("Please remove the control board from the jig and plug it into the computer directly.")
         controlDevice = None
