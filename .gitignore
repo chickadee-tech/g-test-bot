@@ -1,0 +1,17 @@
+**/*.bak
+**/*pb2.py*
+**/*-cache.lib
+**/*-rescue.lib
+**/*.kicad_pcb-bak
+**/gerber.zip
+**/_autosave*
+test/build/
+test/.dep/
+f3_control_test/build/
+f3_control_test/.dep/
+f4_control_test/build/
+f4_control_test/.dep/
+runner/venv/
+runner/Chickadee-tech-Board History-2c3e589ba27e.json
+*.zip
+runner/runner-*.py
