@@ -21,4 +21,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-protoc --python_out=. -I ../../shared/proto ../../shared/proto/polystack.proto
+protoc --python_out=. -I ../../polystack/proto ../../polystack/proto/polystack.proto
