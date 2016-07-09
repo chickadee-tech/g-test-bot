@@ -420,7 +420,6 @@ def dataPinOk(test_jig_id, board_name, board_info, pin_name, shorts, top):
        (output_name == "UART1_RX" and shorts == ["SPI2_SCK"] and not top)):
       return True
     if top != [output_name] or shorts:
-      print(top, output_name, shorts)
       logError("Bottom " + pin_name + " is connected to incorrect top pin(s): " + str(top))
       return False
 
